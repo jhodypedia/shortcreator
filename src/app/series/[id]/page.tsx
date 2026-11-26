@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { SeriesBible } from "@/lib/schemas";
 import { BibleEditorClient } from "@/components/bible-editor/BibleEditorClient";
+import { AiEpisodeGenerator } from "@/components/ai-episode-generator";
+import { SeriesHeaderNav } from "@/components/series-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,9 @@ export default async function SeriesDetailPage({
   if (!series) notFound();
 
   return (
+    <div className="space-y-4">
+    <SeriesHeaderNav seriesId={series.id} seriesName={series.name} bibleVersion={series.bibleVersion} accentColor={(series.bible as unknown as SeriesBible).visualStyle?.accentColor} emoji={(series.bible as unknown as SeriesBible).visualStyle?.emoji} />
+    <AiEpisodeGenerator seriesId={series.id} />
     <BibleEditorClient
       series={{
         id: series.id,
@@ -31,5 +36,6 @@ export default async function SeriesDetailPage({
       }}
       initialBible={series.bible as unknown as SeriesBible}
     />
+    </div>
   );
 }

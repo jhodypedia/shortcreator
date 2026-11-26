@@ -34,6 +34,7 @@ export function SetPreview3D({
         style={{ height }}
       >
         <Canvas
+          frameloop="demand"
           shadows
           camera={{ position: cameraPosition, fov: 46 }}
           onCreated={({ camera }) => {

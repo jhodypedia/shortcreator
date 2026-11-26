@@ -30,7 +30,7 @@ export function CharacterPreview3D({
       className="relative w-full overflow-hidden rounded-lg border border-border bg-slate-950"
       style={{ height }}
     >
-      <Canvas shadows camera={{ position: [0, 1.5, 3.2], fov: 42 }}>
+      <Canvas frameloop="demand" shadows camera={{ position: [0, 1.5, 3.2], fov: 42 }}>
         <color attach="background" args={["#09090b"]} />
         <ambientLight intensity={0.85} />
         <directionalLight position={[4, 7, 5]} intensity={1.4} castShadow />

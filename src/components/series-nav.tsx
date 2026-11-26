@@ -21,7 +21,8 @@ export function SeriesHeaderNav({
 }) {
   const pathname = usePathname();
   const tabs = [
-    { href: `/series/${seriesId}`, label: "Bible", icon: BookOpen, exact: true },
+    { href: `/series/${seriesId}`, label: "Ringkasan", icon: BookOpen, exact: true },
+    { href: `/series/${seriesId}`, label: "Panduan", icon: BookOpen, exact: true },
     { href: `/series/${seriesId}/episodes`, label: "Episode", icon: Film },
     { href: `/series/${seriesId}/characters`, label: "Karakter", icon: Users },
     { href: `/series/${seriesId}/sets`, label: "Set", icon: Boxes },
@@ -46,7 +47,7 @@ export function SeriesHeaderNav({
         </Badge>
       </div>
 
-      <div className="border-t border-border p-2"><FloatingTabList items={tabs.map((tab) => ({ value: tab.href, label: tab.label }))} value={tabs.find((tab) => tab.exact ? pathname === tab.href : pathname.startsWith(tab.href))?.href ?? tabs[0].href} onValueChange={(href) => { window.location.href = href; }}/></div>
+      <div className="sticky top-0 z-30 border-t border-border bg-card/95 p-2 backdrop-blur-xl"><FloatingTabList items={tabs.map((tab) => ({ value: tab.label, label: tab.label }))} value={tabs.find((tab) => tab.exact ? pathname === tab.href : pathname.startsWith(tab.href))?.label ?? "Ringkasan"} onValueChange={(label) => { const tab = tabs.find((item) => item.label === label); if (tab) window.location.href = tab.href; }}/></div>
     </div>
   );
 }
