@@ -36,7 +36,7 @@ export function CharacterBuilderClient({
 }) {
   const router = useRouter();
   const [characters, setCharacters] = useState<CharacterConfig[]>(
-    initialBible.characters
+    normalizeCharacters(initialBible.characters)
   );
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [speakingTest, setSpeakingTest] = useState(false);
@@ -48,6 +48,32 @@ export function CharacterBuilderClient({
   const [editSheetOpen, setEditSheetOpen] = useState(false);
 
   const activeChar = characters[selectedIdx] ?? characters[0];
+
+  function normalizeCharacters(input: unknown): CharacterConfig[] {
+    if (!Array.isArray(input)) return [];
+    return input.filter((item) => Boolean(item && typeof item === "object")).map((character, index) => {
+      const source = character as Partial<CharacterConfig>;
+      return {
+        ...source,
+        id: typeof source.id === "string" && source.id ? source.id : `character-${index + 1}`,
+        name: typeof source.name === "string" && source.name ? source.name : `Karakter ${index + 1}`,
+        role: typeof source.role === "string" ? source.role : "Karakter",
+        traits: Array.isArray(source.traits) ? source.traits.filter((trait): trait is string => typeof trait === "string") : [],
+        colorPrimary: typeof source.colorPrimary === "string" ? source.colorPrimary : "#10B981",
+        colorSkin: typeof source.colorSkin === "string" ? source.colorSkin : "#F5C6A5",
+        colorPants: typeof source.colorPants === "string" ? source.colorPants : "#334155",
+        colorHair: typeof source.colorHair === "string" ? source.colorHair : "#1E293B",
+        proportions: source.proportions ?? { headScale: 1, bodyHeight: 1, limbLength: 1 },
+        voiceId: typeof source.voiceId === "string" ? source.voiceId : "id-ID-ArdiNeural",
+        voicePitch: typeof source.voicePitch === "number" ? source.voicePitch : 0,
+        voiceSpeed: typeof source.voiceSpeed === "number" ? source.voiceSpeed : 1,
+        expression: source.expression ?? "netral",
+        accessory: source.accessory ?? "none",
+        catchphrase: typeof source.catchphrase === "string" ? source.catchphrase : "",
+        forbidden: typeof source.forbidden === "string" ? source.forbidden : "",
+      } as CharacterConfig;
+    });
+  }
 
   const updateChar = (patch: Partial<CharacterConfig>) => {
     setCharacters((prev) =>
@@ -80,11 +106,12 @@ export function CharacterBuilderClient({
   async function handleSave() {
     setSaving(true);
     try {
+      const safeCharacters = normalizeCharacters(characters);
       const res = await fetch(`/api/series/${series.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bible: { ...initialBible, characters },
+          bible: { ...initialBible, characters: safeCharacters },
           changeNote: "Pembaruan Character Builder 3D",
           reason: "Konsistensi karakter voxel/kartun",
         }),
@@ -216,7 +243,7 @@ export function CharacterBuilderClient({
                 <div className="space-y-1.5">
                   <Label>3 Sifat (pisahkan koma)</Label>
                   <Input
-                    value={activeChar.traits.join(", ")}
+                    value={(activeChar.traits ?? []).join(", ")}
                     onChange={(e) =>
                       updateChar({
                         traits: e.target.value
@@ -379,7 +406,7 @@ export function CharacterBuilderClient({
         </div>
       )}
       <BottomSheet open={editSheetOpen} onOpenChange={setEditSheetOpen} title={`Edit ${activeChar?.name ?? "karakter"}`}>
-        {activeChar ? <div className="space-y-4"><div className="grid grid-cols-2 gap-3"><div><Label>Nama</Label><Input value={activeChar.name} onChange={(e)=>updateChar({name:e.target.value})}/></div><div><Label>Peran</Label><Input value={activeChar.role} onChange={(e)=>updateChar({role:e.target.value})}/></div><div className="col-span-2"><Label>Sifat</Label><Input value={activeChar.traits.join(", ")} onChange={(e)=>updateChar({traits:e.target.value.split(",").map((item)=>item.trim()).filter(Boolean).slice(0,5)})}/></div></div><CharacterPreview3D character={activeChar} visualStyle={series.visualStyle as "voxel-3d"|"cartoon-3d"} height={220}/><Button className="w-full" onClick={handleSave}><Save className="size-4"/>Simpan perubahan</Button></div> : null}
+        {activeChar ? <div className="space-y-4"><div className="grid grid-cols-2 gap-3"><div><Label>Nama</Label><Input value={activeChar.name} onChange={(e)=>updateChar({name:e.target.value})}/></div><div><Label>Peran</Label><Input value={activeChar.role} onChange={(e)=>updateChar({role:e.target.value})}/></div><div className="col-span-2"><Label>Sifat</Label><Input value={(activeChar.traits ?? []).join(", ")} onChange={(e)=>updateChar({traits:e.target.value.split(",").map((item)=>item.trim()).filter(Boolean).slice(0,5)})}/></div></div><CharacterPreview3D character={activeChar} visualStyle={series.visualStyle as "voxel-3d"|"cartoon-3d"} height={220}/><Button className="w-full" onClick={handleSave}><Save className="size-4"/>Simpan perubahan</Button></div> : null}
       </BottomSheet>
     </div>
   );
