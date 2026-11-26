@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Save, Volume2 } from "lucide-react";
+import { Plus, Save, Volume2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { CharacterConfig, SeriesBible } from "@/lib/schemas";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { CharacterPreview3D } from "./CharacterPreview3D";
 import { SeriesHeaderNav } from "@/components/series-nav";
+import { BottomSheet } from "@/components/ui/studio-primitives";
 
 const VOICES = [
   { id: "id-ID-ArdiNeural", label: "Ardi (id-ID Pria)" },
@@ -40,6 +41,11 @@ export function CharacterBuilderClient({
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [speakingTest, setSpeakingTest] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [aiDescription, setAiDescription] = useState("");
+  const [aiCommand, setAiCommand] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [undoStack, setUndoStack] = useState<CharacterConfig[][]>([]);
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
 
   const activeChar = characters[selectedIdx] ?? characters[0];
 
@@ -48,6 +54,28 @@ export function CharacterBuilderClient({
       prev.map((c, idx) => (idx === selectedIdx ? { ...c, ...patch } : c))
     );
   };
+
+  async function generateCharacter(command?: string, variation = false) {
+    setAiBusy(true);
+    try {
+      const description = command || aiDescription || (variation ? `Buat variasi baru dari ${activeChar?.name}, pertahankan peran utama namun ubah detail visual.` : "");
+      const response = await fetch("/api/ai/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "characterDesigner", input: { description, bible: initialBible } }) });
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Sambungan progres AI gagal");
+      const decoder = new TextDecoder(); let buffer = ""; let generated: Record<string, unknown> | null = null;
+      while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const chunks = buffer.split("\n\n"); buffer = chunks.pop() || ""; for (const chunk of chunks) { const dataLine = chunk.split("\n").find((line) => line.startsWith("data: ")); if (!dataLine) continue; const payload = JSON.parse(dataLine.slice(6)); if (chunk.includes("event: result")) generated = payload.data; if (chunk.includes("event: error")) throw new Error(payload.error); } }
+      if (!generated) throw new Error("AI tidak menghasilkan karakter");
+      setUndoStack((prev) => [...prev, characters]);
+      const raw = generated as Record<string, unknown>;
+      const accessoryType = String((raw.accessories as Array<{type:string}>)[0]?.type || "none");
+      const accessory = (["none", "topi", "kacamata", "syal", "mahkota"] as string[]).includes(accessoryType) ? accessoryType as CharacterConfig["accessory"] : "none";
+      const config: CharacterConfig = { id: `char-${characters.length + 1}`, name: String(raw.name), role: String(raw.role), traits: Array.isArray(raw.traits) ? raw.traits.map(String).slice(0, 3) : [], colorPrimary: String(raw.shirtColor), colorSkin: String(raw.skinColor), colorPants: String(raw.pantsColor), colorHair: String(raw.hairColor), proportions: { headScale: Number(raw.headRatio), bodyHeight: Number(raw.height), limbLength: Number(raw.bodyWidth) }, voiceId: String((raw.voice as Record<string, unknown>).id), voicePitch: Number((raw.voice as Record<string, unknown>).pitch), voiceSpeed: Number((raw.voice as Record<string, unknown>).speed), expression: "netral", accessory, catchphrase: String(raw.catchphrase || ""), forbidden: "" };
+      setCharacters((prev) => variation || command || !activeChar ? [...prev, config] : prev.map((ch, idx) => idx === selectedIdx ? config : ch));
+      if (variation || !activeChar) setSelectedIdx(characters.length);
+      toast.success("Karakter dibuat oleh AI");
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Gagal membuat karakter"); }
+    finally { setAiBusy(false); }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -135,6 +163,8 @@ export function CharacterBuilderClient({
           <Save className="size-4" /> {saving ? "Menyimpan..." : "Simpan ke Bible"}
         </Button>
       </div>
+
+      <Card><CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="size-4"/>Buat karakter dengan AI</CardTitle><CardDescription>Deskripsikan karakter, minta variasi, atau ubah karakter aktif lewat perintah.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2"><Input aria-label="Deskripsi karakter" placeholder="Contoh: pedagang warung yang tegas tapi baik hati" value={aiDescription} onChange={(e)=>setAiDescription(e.target.value)} className="min-w-60 flex-1"/><Button disabled={aiBusy||!aiDescription.trim()} onClick={()=>generateCharacter()}><Sparkles className="size-4"/>{aiBusy?"Membuat…":"Buat dengan AI"}</Button><Button variant="outline" disabled={aiBusy||!activeChar} onClick={()=>generateCharacter(undefined,true)}>Variasi lain</Button><Input aria-label="Perintah ubah karakter" placeholder="buat lebih gemuk dan pakai peci hijau" value={aiCommand} onChange={(e)=>setAiCommand(e.target.value)}/><Button variant="secondary" disabled={aiBusy||!aiCommand.trim()} onClick={()=>generateCharacter(aiCommand)}>Ubah dengan perintah</Button><Button variant="outline" disabled={!undoStack.length} onClick={()=>{setCharacters(undoStack[undoStack.length-1]);setUndoStack((s)=>s.slice(0,-1));toast.success("Versi sebelumnya dipulihkan")}}>Undo</Button></CardContent></Card>
 
       {activeChar && (
         <div className="grid gap-6 lg:grid-cols-12">
@@ -348,6 +378,9 @@ export function CharacterBuilderClient({
           </Card>
         </div>
       )}
+      <BottomSheet open={editSheetOpen} onOpenChange={setEditSheetOpen} title={`Edit ${activeChar?.name ?? "karakter"}`}>
+        {activeChar ? <div className="space-y-4"><div className="grid grid-cols-2 gap-3"><div><Label>Nama</Label><Input value={activeChar.name} onChange={(e)=>updateChar({name:e.target.value})}/></div><div><Label>Peran</Label><Input value={activeChar.role} onChange={(e)=>updateChar({role:e.target.value})}/></div><div className="col-span-2"><Label>Sifat</Label><Input value={activeChar.traits.join(", ")} onChange={(e)=>updateChar({traits:e.target.value.split(",").map((item)=>item.trim()).filter(Boolean).slice(0,5)})}/></div></div><CharacterPreview3D character={activeChar} visualStyle={series.visualStyle as "voxel-3d"|"cartoon-3d"} height={220}/><Button className="w-full" onClick={handleSave}><Save className="size-4"/>Simpan perubahan</Button></div> : null}
+      </BottomSheet>
     </div>
   );
 }

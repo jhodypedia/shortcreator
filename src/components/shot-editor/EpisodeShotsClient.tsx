@@ -157,7 +157,7 @@ export function EpisodeShotsClient({
         </Card>
 
         {/* Daftar Shot */}
-        <Card className="lg:col-span-7">
+        <Card className="studio-card lg:col-span-7">
           <CardHeader>
             <CardTitle className="text-base">Daftar Shot Kamera</CardTitle>
           </CardHeader>
@@ -179,12 +179,12 @@ export function EpisodeShotsClient({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">Shot #{idx + 1}</Badge>
+                      <Badge variant="outline">Bidikan #{idx + 1}</Badge>
                       <span className="text-xs font-semibold">
                         {line ? `${line.speaker}: "${line.text}"` : shot.note}
                       </span>
                     </div>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="hidden text-[11px] text-muted-foreground md:inline">
                       {shot.startFrame}f → {shot.endFrame}f
                     </span>
                   </div>
@@ -192,7 +192,7 @@ export function EpisodeShotsClient({
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div>
                       <Label className="text-[11px]">Tipe Shot</Label>
-                      <Select
+                        <Select
                         value={shot.shot}
                         disabled={isLocked}
                         onValueChange={(v) => {

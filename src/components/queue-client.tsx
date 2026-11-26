@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { ProgressRing, EmptyState } from "@/components/ui/studio-primitives";
 import { StatusBadge } from "@/components/status-badge";
 import { CountUp, Reveal } from "@/components/studio-motion";
 
@@ -184,19 +185,13 @@ export function QueueClient({
         </div>
       </div>
 
-      <section className="overflow-hidden rounded-lg border border-border bg-card">
+      <section className="studio-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
           <h2 className="panel-title">Daftar Antrean</h2>
           <span className="mono text-[10px] text-muted-foreground">{items.length} item · live 3s</span>
         </div>
         {items.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-            <span aria-hidden="true" className="pixel-empty-art" />
-            <p className="text-[13px] font-medium">Antrean kosong</p>
-            <p className="max-w-sm text-[11px] text-muted-foreground">
-              Masukkan episode berstatus Siap Render dari halaman Pratinjau atau Panduan Massal.
-            </p>
-          </div>
+          <div className="p-4"><EmptyState title="Render berikutnya menunggu" description="Siapkan episode dari pratinjau atau gunakan AI untuk membuat video pertama."/></div>
         ) : (
           <div className="divide-y divide-border">
             {items.map((item, idx) => {
@@ -204,8 +199,8 @@ export function QueueClient({
               const isRendering = item.status === "rendering";
               return (
                 <Reveal key={item.id} delay={Math.min(idx, 5) * 0.02} className="px-3 py-2.5">
-                  <div className="flex gap-2.5">
-                    <div className="relative flex aspect-[9/16] w-10 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-border bg-[#0b0c0e]" aria-hidden="true">
+                  <div className="flex gap-3">
+                    <div className="relative flex aspect-[9/16] w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-[#0b0c0e]" aria-hidden="true">
                       <Clapperboard className="size-3.5 text-muted-foreground" />
                       <span className="mono absolute bottom-0.5 text-[8px] text-muted-foreground">#{idx + 1}</span>
                     </div>
@@ -220,13 +215,17 @@ export function QueueClient({
                         <StatusBadge status={item.status} />
                       </div>
 
-                      <div className="mt-1.5">
-                        <Progress value={item.progress} isComplete={item.status === "done"} isActive={isRendering} />
-                      </div>
+                        <div className="mt-1.5 flex items-center gap-3">
+                          <ProgressRing value={item.progress} size={42} stroke={3}/>
+                          <div className="min-w-0 flex-1">
+                          <Progress value={item.progress} isComplete={item.status === "done"} isActive={isRendering} />
+                          <p className="mt-1 text-[11px] text-muted-foreground">Waktu tersisa · {formatEta(item.etaSec)}</p>
+                          </div>
+                        </div>
 
                       <div className="mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
                         <span>{item.currentFrame} / {totalFrames} fr · {item.progress}%</span>
-                        <span>ETA {formatEta(item.etaSec)} · coba {item.attempts}×</span>
+                        <span>Perlu percobaan {item.attempts}</span>
                       </div>
 
                       <div className="mt-1.5 flex flex-wrap items-center gap-1">
