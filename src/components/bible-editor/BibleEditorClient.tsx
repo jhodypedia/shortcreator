@@ -17,6 +17,7 @@ import { CharacterPreview3D } from "@/components/character-preview/CharacterPrev
 import { SetPreview3D } from "@/components/set-preview/SetPreview3D";
 import { SeriesHeaderNav } from "@/components/series-nav";
 import { AiCommandBar } from "@/components/ai-command-bar";
+import { SaveIndicator } from "@/components/ui/studio-primitives";
 
 export function BibleEditorClient({
   series,
@@ -40,10 +41,12 @@ export function BibleEditorClient({
   const [version, setVersion] = useState(series.bibleVersion);
   const [changeReason, setChangeReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(true);
 
   const syncBible = (next: SeriesBible) => {
     setBible(next);
     setJsonText(JSON.stringify(next, null, 2));
+    setSaved(false);
   };
 
   const handleJsonChange = (raw: string) => {
@@ -105,6 +108,7 @@ export function BibleEditorClient({
       }
       setVersion(json.series.bibleVersion);
       syncBible(json.series.bible as SeriesBible);
+      setSaved(true);
       setChangeReason("");
       toast.success(`Series Bible tersimpan (v${json.series.bibleVersion})`);
       router.refresh();
@@ -169,6 +173,7 @@ export function BibleEditorClient({
 
       {/* Action Bar */}
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <SaveIndicator state={saving ? "saving" : saved ? "saved" : "error"} />
         <div className="flex-1">
           <Input
             placeholder="Catatan perubahan (opsional, mis: tambah karakter baru)..."

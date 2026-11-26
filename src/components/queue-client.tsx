@@ -199,7 +199,7 @@ export function QueueClient({
               const isRendering = item.status === "rendering";
               return (
                 <Reveal key={item.id} delay={Math.min(idx, 5) * 0.02} className="px-3 py-2.5">
-                  <div className="flex gap-3">
+                  <div className="studio-card flex min-w-0 gap-3 p-3">
                     <div className="relative flex aspect-[9/16] w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-[#0b0c0e]" aria-hidden="true">
                       <Clapperboard className="size-3.5 text-muted-foreground" />
                       <span className="mono absolute bottom-0.5 text-[8px] text-muted-foreground">#{idx + 1}</span>

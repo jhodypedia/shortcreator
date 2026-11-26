@@ -2,12 +2,18 @@
 
 import * as React from "react";
 import { motion } from "motion/react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Check, LoaderCircle } from "lucide-react";
 import { cn } from "cn";
 import { Drawer } from "vaul";
 
 export function IconButton({ label, children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return <button aria-label={label} title={label} className={cn("studio-button focus-ring inline-flex size-11 shrink-0 items-center justify-center border border-border bg-card text-foreground hover:border-primary/60", className)} {...props}>{children}</button>;
+}
+
+export function SaveIndicator({ state }: { state: "saved" | "saving" | "error" }) {
+  const Icon = state === "saved" ? Check : state === "saving" ? LoaderCircle : Sparkles;
+  const label = state === "saved" ? "Tersimpan" : state === "saving" ? "Menyimpan…" : "Belum tersimpan";
+  return <span role="status" className="inline-flex min-h-9 items-center gap-2 text-xs text-muted-foreground"><Icon className={cn("size-3.5", state === "saved" && "text-primary", state === "saving" && "animate-spin", state === "error" && "text-destructive")} />{label}</span>;
 }
 
 export function ProgressRing({ value, size = 48, stroke = 4, className }: { value: number; size?: number; stroke?: number; className?: string }) {
