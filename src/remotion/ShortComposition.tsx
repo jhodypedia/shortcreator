@@ -220,8 +220,14 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
           {bible.characters.map((char, idx) => {
             const activeDirectedBeat = directedBeats.find((beat) => frame >= beat.startFrame && frame < beat.endFrame) ?? directedBeats[directedBeats.length - 1];
             const cue: DirectedBeat["characters"][number] | undefined = activeDirectedBeat?.characters.find((item) => item.character === char.name);
-            const baseX = bible.characters.length === 1 ? 0 : (idx - (bible.characters.length - 1) / 2) * 1.6;
-            const stagePosition = cue ? evaluateStagePosition(activeDirectedBeat, char.name, frame) : [baseX, 0, 0] as [number, number, number];
+            const previousCue = directedBeats.filter((beat) => beat.endFrame <= frame).reverse().find((beat) => beat.characters.some((item) => item.character === char.name))?.characters.find((item) => item.character === char.name);
+            const stagePosition = cue && activeDirectedBeat
+              ? evaluateStagePosition(activeDirectedBeat, char.name, frame)
+              : previousCue?.to ?? [0, 0, 0];
+            const action = cue?.moving && frame < cue.startFrame + Math.min(Math.max(18, Math.ceil(Math.hypot(cue.to[0] - cue.from[0], cue.to[1] - cue.from[1], cue.to[2] - cue.from[2]) / 1.6 * fps)), cue.endFrame - cue.startFrame)
+              ? "walk"
+              : cue?.action ?? "idle";
+            const previousAction = previousCue?.action ?? "idle";
             const targetCue = cue?.lookAt && cue.lookAt !== "camera"
               ? activeDirectedBeat?.characters.find((item) => item.character === cue.lookAt)
               : undefined;
@@ -245,7 +251,9 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
                 visualStyle={visualStyle}
                 speaking={isSpeaking}
                 emotion={emotion}
-                action={cue ? (cue.moving && cue.startFrame <= frame && frame < cue.startFrame + Math.min(12, cue.endFrame - cue.startFrame) ? "walk" : cue.action) : "idle"}
+                action={action}
+                previousAction={cue?.previousAction ?? previousAction}
+                transitionStartFrame={cue?.transitionStartFrame ?? cue?.startFrame}
                 position={stagePosition}
                 rotationY={cue?.lookAt === "camera" ? 0 : facingY}
                 frame={frame}

@@ -17,6 +17,8 @@ export interface DirectedCharacter {
   startFrame: number;
   endFrame: number;
   moving: boolean;
+  previousAction?: CharacterAction;
+  transitionStartFrame?: number;
   prop?: string;
   sfx?: string;
 }
@@ -36,10 +38,21 @@ export function inferActionFromText(text: string): CharacterAction | undefined {
   return undefined;
 }
 
-function beatAction(line: ScriptLine, index: number): CharacterAction {
+export function beatAction(line: ScriptLine): CharacterAction {
   return line.action && line.action !== "idle" && line.action !== "talk"
     ? line.action
-    : inferActionFromText(line.text) ?? (["point", "walk", "nod", "wave"] as const)[index % 4];
+    : inferActionFromText(line.text) ?? gestureFromEmotionAndText(line);
+}
+
+function gestureFromEmotionAndText(line: ScriptLine): CharacterAction {
+  const text = line.text.toLowerCase();
+  if (/ayo|lihat|tuh|ini dia|coba/.test(text)) return "point";
+  if (line.emotion === "senang") return "talk";
+  if (line.emotion === "kaget") return "surprised";
+  if (line.emotion === "marah") return "angry";
+  if (line.emotion === "mikir" || line.emotion === "curiga") return "think";
+  if (line.emotion === "sedih") return "shake_head";
+  return "talk";
 }
 
 /** Build continuous blocking paths from script beats. All coordinates and timings are render-frame deterministic. */
@@ -58,17 +71,13 @@ export function directStage(
     cursor = beatStart;
     const speaker = line.speaker;
     const speakerStart = previous.get(speaker) ?? STAGE_POSITIONS[index % 2 === 0 ? "pintu" : "counter"];
-    let speakerPosition = STAGE_POSITIONS[line.moveTo ?? (index % 2 === 0 ? "counter" : "pintu")];
-    if (speakerStart.every((v, axis) => Math.abs(v - speakerPosition[axis]) <= 0.05)) {
-      const fallback = Object.values(STAGE_POSITIONS).find((mark) =>
-        mark.some((v, axis) => Math.abs(v - speakerStart[axis]) > 0.5),
-      );
-      if (fallback) speakerPosition = fallback;
-    }
+    const speakerPosition = line.moveTo ? STAGE_POSITIONS[line.moveTo] : speakerStart;
     const beatEnd = cursor + durationFrames;
     const out: DirectedCharacter[] = [{
       character: speaker,
-      action: beatAction(line, index),
+      action: beatAction(line),
+      previousAction: "idle",
+      transitionStartFrame: beatStart,
       from: speakerStart,
       to: speakerPosition,
       lookAt: line.lookAt ?? "camera",
@@ -78,7 +87,6 @@ export function directStage(
       prop: line.prop,
       sfx: line.sfxPath ?? line.sfx,
     }];
-    previous.set(speaker, speakerPosition);
 
     // Keep listeners in a distinct blocking mark and animate a reaction on their beat delay.
     const allCharacters = [...new Set([...cast, ...script.lines.map((l) => l.speaker)])];
@@ -88,24 +96,25 @@ export function directStage(
     const occupied = [speakerPosition];
     for (const listener of listeners) {
       const oldPosition = previous.get(listener) ?? STAGE_POSITIONS["belakang_warung"];
-      const marks = Object.values(STAGE_POSITIONS);
-      const listenerPosition = marks.find((mark) =>
-        Math.hypot(mark[0] - oldPosition[0], mark[2] - oldPosition[2]) > 0.55 &&
-        occupied.every((place) => Math.hypot(mark[0] - place[0], mark[2] - place[2]) >= 0.85),
-      ) ?? marks[(index + listeners.indexOf(listener) + 1) % marks.length];
+      const listenerPosition = oldPosition;
       const reaction = line.reactions?.find((r) => r.character === listener);
       out.push({
         character: listener,
-      action: reaction?.action ?? (line.emotion === "kaget" ? "surprised" : "nod"),
+        action: reaction?.action ?? (line.emotion === "kaget" ? "surprised" : "nod"),
+        previousAction: "idle",
+        transitionStartFrame: cursor + (reaction?.delayFrames ?? 0),
         from: oldPosition,
         to: listenerPosition,
         lookAt: speaker,
         startFrame: cursor + (reaction?.delayFrames ?? 0),
         endFrame: beatEnd,
-        moving: oldPosition.some((v, axis) => Math.abs(v - listenerPosition[axis]) > 0.05),
+        moving: false,
       });
-      previous.set(listener, listenerPosition);
       occupied.push(listenerPosition);
+    }
+    previous.set(speaker, speakerPosition);
+    for (const character of allCharacters) {
+      if (!previous.has(character)) previous.set(character, character === speaker ? speakerPosition : STAGE_POSITIONS.belakang_warung);
     }
     cursor = beatEnd;
     return { lineId: line.id, startFrame: beatStart, endFrame: beatEnd, characters: out, sfx: line.sfxPath ?? line.sfx };
@@ -115,10 +124,19 @@ export function directStage(
 export function evaluateStagePosition(beat: DirectedBeat, character: string, frame: number): [number, number, number] {
   const cue = beat.characters.find((item) => item.character === character);
   if (!cue || !cue.moving) return cue?.to ?? [0, 0, 0];
-  const duration = Math.max(1, Math.min(12, Math.round((cue.endFrame - cue.startFrame) * 0.4)));
+  const distance = Math.hypot(cue.to[0] - cue.from[0], cue.to[1] - cue.from[1], cue.to[2] - cue.from[2]);
+  const duration = Math.min(Math.max(18, Math.ceil(distance / 1.6 * 30)), Math.max(18, cue.endFrame - cue.startFrame));
   const p = Math.max(0, Math.min(1, (frame - cue.startFrame) / duration));
   const eased = p * p * (3 - 2 * p);
   return cue.from.map((v, i) => v + (cue.to[i] - v) * eased) as [number, number, number];
+}
+
+export function evaluateStageFacing(beat: DirectedBeat, character: string, frame: number): number {
+  const cue = beat.characters.find((item) => item.character === character);
+  if (!cue || !cue.moving) return 0;
+  const arrived = frame >= cue.startFrame + Math.min(Math.max(18, Math.ceil(Math.hypot(cue.to[0] - cue.from[0], cue.to[2] - cue.from[2]) / 1.6 * 30)), cue.endFrame - cue.startFrame);
+  if (arrived) return cue.lookAt === "camera" ? 0 : Math.atan2(cue.to[0] - cue.from[0], cue.to[2] - cue.from[2]);
+  return Math.atan2(cue.to[0] - cue.from[0], cue.to[2] - cue.from[2]);
 }
 
 export function assertStageMovement(beats: DirectedBeat[]) {

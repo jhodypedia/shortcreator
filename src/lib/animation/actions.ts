@@ -80,10 +80,15 @@ export function actionPose(action: CharacterAction, frame: number, fps: number):
     pose.torso[0] = -0.08; pose.armL[0] = -0.4; pose.armR[0] = -0.4;
     pose.armL[2] = 0.16; pose.armR[2] = -0.16; pose.head[0] = 0.08;
   } else if (action === "turn_to") {
-    pose.hips[1] = Math.sin(t * 3) * 0.3; pose.torso[1] = Math.sin(t * 3) * 0.52;
-    pose.head[1] = Math.sin(t * 3) * 0.62;
+    const turn = smooth(Math.min(1, Math.max(0, frame / Math.max(1, fps * 0.35))));
+    pose.hips[1] = turn * 0.3; pose.torso[1] = turn * 0.52;
+    pose.head[1] = turn * 0.62;
   }
   return pose;
+}
+
+export function localActionPose(action: CharacterAction, frame: number, startFrame: number, fps: number): JointPose {
+  return actionPose(action, Math.max(0, frame - startFrame), fps);
 }
 
 /** Blend the previous and current action over exactly 8 Remotion frames. */
@@ -94,10 +99,10 @@ export function blendedActionPose(
   previousAction: CharacterAction = action,
   transitionStartFrame = frame,
 ): JointPose {
-  const current = actionPose(action, frame, fps);
+  const current = localActionPose(action, frame, transitionStartFrame, fps);
   if (previousAction === action) return current;
   const amount = smooth((frame - transitionStartFrame) / 8);
-  const previous = actionPose(previousAction, frame, fps);
+  const previous = actionPose(previousAction, Math.max(0, frame - transitionStartFrame), fps);
   const result = zero();
   (Object.keys(result).filter((key) => key !== "bounce" && key !== "squash") as Array<Exclude<keyof JointPose, "bounce" | "squash">>).forEach((joint) => {
     for (let axis = 0; axis < 3; axis++) {
