@@ -1,0 +1,22 @@
+[Unit]
+Description=Short Generator Next.js app and render worker
+After=network.target
+
+[Service]
+Type=simple
+User=boxd
+Group=boxd
+WorkingDirectory=/home/boxd/robloxstr
+Environment=NODE_ENV=production
+Environment=PORT=8000
+Environment=HOSTNAME=0.0.0.0
+ExecStart=/home/boxd/.nvm/versions/node/v24.22.2/bin/npm run start -- --hostname 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/home/boxd/robloxstr
+
+[Install]
+WantedBy=multi-user.target

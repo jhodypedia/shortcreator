@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Series {
+  id           String    @id @default(cuid())
+  name         String
+  theme        String
+  audience     String    // anak | remaja | umum
+  tone         String    // lucu | tegang | heartwarming
+  language     String    @default("id-ID")
+  visualStyle  String    // voxel-3d | cartoon-3d
+  bible        Json      // SeriesBible lengkap
+  bibleVersion Int       @default(1)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  episodes     Episode[]
+}
+
+model Episode {
+  id              String      @id @default(cuid())
+  seriesId        String
+  series          Series      @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  number          Int
+  title           String
+  status          String      @default("draft") // draft|script|timing|ready|rendering|review|done|failed
+  hook            String
+  twist           String
+  cliffhanger     String      // cliffhanger yang disisakan episode ini
+  cliffhangerFrom String?     // cliffhanger episode sebelumnya yang dijawab
+  scriptVersion  Int         @default(2) // 2 adds stage direction fields to each JSON script line; parser defaults preserve legacy scripts
+  script          Json        // { lines: [{ id, beat, speaker, text, emotion, action, actionTarget, prop, moveTo, lookAt, sfx, reactions, durationSec }] }
+  voiceTiming     Json?       // { captions: [...], pauses: [...], sfxMarkers: [...], bgm: {...}, captionStyle: {...} }
+  shots           Json        // { shots: [{ shot, startFrame, endFrame, camera, transition, note }] }
+  durationSec     Float?
+  totalFrames     Int?
+  audioFiles      Json?       // [{ lineId, path, durationSec }]
+  renderPath      String?
+  review          Json?       // { checks: [{id, passed, note}], status, reviewedAt, renderAttempts, unlockReason }
+  publish         Json?       // { platform, url, uploadedAt, views, likes, subsDelta, notes }
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  queueItems      QueueItem[]
+
+  @@unique([seriesId, number])
+}
+
+model QueueItem {
+  id           String   @id @default(cuid())
+  episodeId    String
+  episode      Episode  @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  position     Int
+  status       String   @default("queued") // queued|rendering|review|done|failed|cancelled
+  progress     Int      @default(0)
+  currentFrame Int      @default(0)
+  etaSec       Int?
+  attempts     Int      @default(0)
+  lastError    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Asset {
+  id        String   @id @default(cuid())
+  seriesId  String?
+  kind      String   // character | set | prop | sfx | music | template
+  name      String
+  path      String
+  meta      Json?
+  createdAt DateTime @default(now())
+}
+
+model AppSetting {
+  key   String @id
+  value String
+}
+
+model QueueControl {
+  id         String   @id @default("default")
+  isPaused   Boolean  @default(false)
+  stopReason String?
+  updatedAt  DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  seriesId  String?
+  episodeId String?
+  level     String   @default("info") // info | success | warning | error
+  message   String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model PromptPreset {
+  id        String   @id @default(cuid())
+  name      String
+  kind      String   @default("video") // video | script
+  target    String   @default("veo3")
+  payload   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DownloadJob {
+  id          String   @id @default(cuid())
+  url         String
+  source      String   @default("yt-dlp") // yt-dlp | render
+  status      String   @default("queued") // queued | running | done | failed
+  progress    Float    @default(0)
+  stage       String?
+  title       String?
+  fileName    String?
+  path        String?
+  sizeBytes   Int?
+  durationSec Float?
+  error       String?
+  episodeId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
