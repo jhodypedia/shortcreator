@@ -230,25 +230,25 @@ export function SeriesListClient({
           <div className="grid gap-3 bg-transparent p-3 sm:grid-cols-2 xl:grid-cols-3">
             {seriesList.map((s) => {
               const bible = s.bible as SeriesBible;
-              const accent = bible?.visualStyle?.accentColor || "#10b981";
-              const emoji = bible?.visualStyle?.emoji || "🎬";
+              const accent = typeof bible?.visualStyle?.accentColor === "string" && /^#[0-9a-f]{6}$/i.test(bible.visualStyle.accentColor) ? bible.visualStyle.accentColor : "#10b981";
+              const emoji = typeof bible?.visualStyle?.emoji === "string" ? bible.visualStyle.emoji : "🎬";
               return (
-                <div key={s.id} className="studio-card touch-card relative p-4 transition-transform duration-200 hover:-translate-y-1" style={{ borderTopColor: accent }}>
+                <div key={s.id} className="studio-card touch-card relative min-w-0 overflow-hidden p-4 transition-transform duration-200 hover:-translate-y-1" style={{ borderTopColor: accent }}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2.5">
                       <div
-                        className="flex size-14 shrink-0 items-center justify-center rounded-2xl border text-2xl transition-transform duration-200 hover:rotate-6 hover:scale-105"
+                        className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border text-2xl transition-transform duration-200 hover:rotate-6 hover:scale-105"
                         style={{ backgroundColor: `${accent}1f`, borderColor: `${accent}66` }}
                         aria-hidden="true"
                       >
-                        {emoji}
+                        <span className="max-h-full max-w-full truncate" aria-hidden="true">{emoji}</span>
                       </div>
                       <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-1.5">
-                          <p className="truncate text-[13px] font-semibold">{s.name}</p>
+                          <p className="line-clamp-1 min-w-0 text-[13px] font-semibold">{s.name}</p>
                           <Badge variant="outline">v{s.bibleVersion}</Badge>
                         </div>
-                        <p className="truncate text-[11px] text-muted-foreground">
+                        <p className="line-clamp-1 min-w-0 text-[11px] text-muted-foreground">
                           {s.episodes.length} episode · {s.tone === "lucu" ? "komedi" : s.tone === "tegang" ? "menegangkan" : "hangat"} · {s.visualStyle === "voxel-3d" ? "Voxel 3D" : "Kartun 3D"}
                         </p>
                       </div>
