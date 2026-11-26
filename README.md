@@ -68,3 +68,21 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+### Arsitektur AI peran
+
+Peran AI (`bibleWriter`, `characterDesigner`, `setDesigner`, `scriptwriter`, `director`, `critic`, `editor`) berada di `src/lib/ai/`. Prompt dan schema Zod input/output masing-masing didefinisikan di `roles.ts`. `runAiRole` mewajibkan JSON valid, menyertakan pesan validasi dalam maksimal dua retry, menggunakan model fallback, dan merekam input/output, token, status, durasi serta error di `AiRun`. Endpoint `/api/ai/run` mengirim event SSE `progress`, `result`, atau `error`. Model, fallback, suhu, dan batas biaya per episode disimpan pada AppSetting (default `ag/gemini-2.5-flash`). Jalankan migrasi Prisma setelah mengambil perubahan. Tambah peran dengan melengkapi type/default/schema lalu integrasikan pada workflow/UI; tambah primitif set melalui whitelist SetSpec dan renderer. Set dibatasi 150 objek.
+
+### Animasi Remotion deterministik
+
+Semua gerak scene berasal dari `useCurrentFrame()` dan fps; jangan memakai `useFrame`, jam sistem, timer, atau random tanpa seed di komponen render. Aksi yang didukung: `idle`, `walk`, `talk`, `point`, `wave`, `nod`, `shake_head`, `surprised`, `laugh`, `slam_table`, `drop_item`, `pick_up`, `hand_over`, `think`, `angry`, `turn_to`. Shot: `wide`, `medium`, `close-up`, `over-shoulder`, `low-angle`, `high-angle`, `dolly-in`, `pan`.
+
+Tambahkan set di Bible (`sets[]`) dengan `id`, `template`, palette dan prop placement; renderer memilih `setId` tiap beat. Prop scene dapat dibuat sebagai mesh box pada `VoxelSetScene` atau prop tangan dalam `VoxelCharacter`. Jaga objek low-poly/box dan gunakan koordinat deterministik. Editor menyimpan aksi, `moveTo` serta prop pada setiap beat.
+
+Series seed **Warung Pak Blokir** dan contoh episode Korek Sepuluh Biji dibuat lewat `npm run seed`. 45 detik uji render low-resolution: `EPISODE_ID=<id> npm run render-test`; file ukurannya disimpan ke `storage/renders/test`.
+
+Caption word-level ditampilkan di sekitar 70–78% tinggi frame, paling banyak delapan kata/two rows per segment, dengan pembicara terpisah di atasnya. BGM (jika ditambahkan) duck saat dialog, SFX aksi pakai aset bebas lisensi di `public/sfx` atau marker eksplisit.
+
+## 6. UI Studio Kreator (mobile-first)
+
+Design tokens studio voxel ada terpusat di `src/app/design-tokens.css`: emerald sebagai aksi utama, kuning senja untuk highlight AI, radius 10–20px, serta tempo/easing animasi. Primitive mobile bersama ada di `src/components/ui/studio-primitives.tsx` (bottom sheet, tab geser, empty state, progress ring, tombol AI). Gunakan target sentuh minimal 44px, safe-area `safe-top`/`safe-bottom`, state focus-visible, dan animasikan hanya transform/opacity untuk interaksi umum. CSS mendukung `prefers-reduced-motion`. Hindari efek blur berlapis dan lazy-load/pratinjau 3D hanya saat dibutuhkan.

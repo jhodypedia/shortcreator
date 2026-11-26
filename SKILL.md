@@ -152,18 +152,22 @@ Tulis shot list di `ep-XXX.json` sebagai `shots[]`: `{ shot, startFrame, endFram
 
 ### Langkah 7 — Animasi Three.js (gerakan secukupnya, tapi hidup)
 
-- Gerakan = `useFrame` + interpolasi antar keyframe, bukan animasi acak. Tiap gerakan punya `startFrame`, `endFrame`, `easing`.
+- Gerak Remotion wajib deterministik dari `useCurrentFrame()` dan fps; jangan gunakan `useFrame`, `Date.now`, timer, atau `Math.random` tanpa seed. Gerakan dipetakan oleh start/end frame dan easing.
 - Idle animation selalu ada: napas (skala dada ±2%), kedip mata tiap 3–5 dtk, kepala mengikuti lawan bicara.
 - Gerakan bicara: mulut buka-tutup mengikuti `captions[]` (bukan asal mangap). Kalau tidak ada lip-sync penuh, pakai buka-tutup sederhana sinkron kata.
 - Jangan over-animasi: 2–3 gerakan bermakna per beat lebih bagus daripada 10 gerakan sibuk.
 - Referensi teknis Three.js: baca skill `threejs-fundamentals`, `threejs-animation`, `threejs-lighting` bila perlu detail scene / cahaya.
+
+Daftar aksi yang tersedia: `idle`, `walk`, `talk`, `point`, `wave`, `nod`, `shake_head`, `surprised`, `laugh`, `slam_table`, `drop_item`, `pick_up`, `hand_over`, `think`, `angry`, `turn_to`. Aksi beat memakai frame lokal dan blend transisi 8 frame. Kamera wajib guard framing 9:16, mengikuti pembicara; shot editor mengalahkan directed fallback. Shot baku: `wide`, `medium`, `close-up`, `over-shoulder`, `low-angle`, `high-angle`, `dolly-in`, `pan`.
+
+Set dan prop didefinisikan di Bible `sets[]` / `props[]`, dipilih per `setId`; scene set khusus dibuat sebagai komponen di `src/remotion/scenes`, prop tangan sebagai mesh berbiaya rendah di rig karakter. Default seed Warung Pak Blokir ada di `prisma/seed.ts`. Pertahankan mesh rendah dan warna/proporsi dari Bible.
 
 ### Langkah 8 — Komposisi Remotion (rakit jadi video)
 
 - Komposisi: `1080×1920`, `30 fps`, durasi = `totalFrames` dari naskah + timing.
 - Struktur: `<ShortComposition>` → `<Scene3D>` (Canvas Three.js) + `<Captions>` + `<SFXLayer>` + `<SafeAreaGuide>` (saat preview saja).
 - Safe area: teks & elemen penting di dalam 1080×1420 tengah — jangan taruh teks di 250px atas / bawah (ketutup UI Shorts).
-- Caption: font tebal, outline / background, maks 3–4 kata per baris, kata aktif di-highlight warna aksen.
+- Caption word-level: font tebal, outline/background, maksimal dua baris, kata aktif di-highlight dan berada sekitar 70–78% tinggi layar; label pembicara di atas caption.
 - Preview dulu di Remotion Studio sebelum render final. Render final: `npx remotion render <Comp> <out>.mp4` — jangan render ulang tanpa alasan; 1 render final per episode, plus render ulang hanya bila review menemukan cacat.
 
 ### Langkah 9 — Review hasil (Claude ikut review, seperti di post)
@@ -209,6 +213,14 @@ Tergantung perintah user, hasilkan salah satu / gabungan:
 Selalu akhiri dengan ringkasan pendek: apa yang dibuat, durasi, file-nya di mana, dan 1 hal yang perlu user putuskan berikutnya.
 
 ## 7. Contoh perintah & respons yang diharapkan
+
+### Arsitektur AI aplikasi
+
+Aplikasi mendefinisikan peran (`bibleWriter`, `characterDesigner`, `setDesigner`, `scriptwriter`, `director`, `critic`, `editor`) di `src/lib/ai/`. Prompt dan schema Zod tiap peran ada di `roles.ts`. Output harus JSON valid, maksimal dua retry dengan error validasi, dan run tercatat pada `AiRun`; `/api/ai/run` menyiarkan progres via SSE. Tambah peran dengan melengkapi type/default/schema serta integrasi workflow. Tambah primitif dengan mengubah whitelist SetSpec dan renderer set.
+
+### Design system studio kreator
+
+Gunakan tokens terpusat di `src/app/design-tokens.css`, primitive `src/components/ui/studio-primitives.tsx`, warna emerald untuk aksi dan kuning senja untuk state AI. UI harus mobile-first, target sentuh ≥44px, aman terhadap safe-area iOS, fokus keyboard terlihat, serta menghormati `prefers-reduced-motion`. Animasi UI umum hanya transform/opacity; jangan animasikan layout/blur berat. Tab strip horizontal harus memakai auto-scroll ke tab aktif; sheet dipakai untuk editor kontekstual di layar sempit.
 
 **User:** "Buatkan short Minecraft episode 1, tema: Steve menemukan desa kosong"
 → Buat / update Bible → 3 ide hook → minta pilih / langsung gas bila user bilang gas → naskah + timing + shot list → scene + komposisi → preview → render → review → serahkan mp4 + review.
