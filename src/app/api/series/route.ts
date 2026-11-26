@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, logActivity } from "@/lib/db";
 import { createDefaultBible } from "@/lib/bible";
 import { CreateSeriesInputSchema } from "@/lib/schemas";
+import { runAiRoleJson } from "@/lib/ai/runner";
 
 export async function GET() {
   const series = await db.series.findMany({
@@ -37,14 +38,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bible =
-      parsed.data.bible ??
-      createDefaultBible({
-        name: parsed.data.name,
-        theme: parsed.data.theme,
-        tone: parsed.data.tone,
-        visualStyle: parsed.data.visualStyle,
-      });
+    let bible: unknown = parsed.data.bible;
+    if (!bible) {
+      let generated: Awaited<ReturnType<typeof runAiRoleJson>> | undefined;
+      let generationError: string | undefined;
+      try {
+        generated = await runAiRoleJson("bibleWriter", { idea: `${parsed.data.name}: ${parsed.data.theme}. Audiens ${parsed.data.audience}, tone ${parsed.data.tone}, gaya ${parsed.data.visualStyle}. Buat Bible awal yang valid dengan karakter dan set.` });
+      } catch (error) {
+        generationError = error instanceof Error ? error.message : String(error);
+      }
+      if (generationError) {
+        return NextResponse.json({ error: `AI belum dapat membuat Bible: ${generationError}. Coba lagi atau gunakan model lain di Pengaturan → AI.` }, { status: 503 });
+      }
+      if (!generated) return NextResponse.json({ error: "AI belum menghasilkan Bible. Silakan coba lagi." }, { status: 503 });
+      bible = { ...createDefaultBible({ name: parsed.data.name, theme: parsed.data.theme, tone: parsed.data.tone, visualStyle: parsed.data.visualStyle }), ...generated.data };
+    }
 
     const created = await db.series.create({
       data: {
@@ -54,7 +62,7 @@ export async function POST(req: NextRequest) {
         tone: parsed.data.tone,
         language: parsed.data.language,
         visualStyle: parsed.data.visualStyle,
-        bible,
+        bible: bible as import("@prisma/client").Prisma.InputJsonValue,
         bibleVersion: 1,
       },
     });
