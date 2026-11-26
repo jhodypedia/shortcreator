@@ -16,9 +16,11 @@ import {
   Settings,
   ChevronRight,
   Sparkles,
+  SunMoon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/ui/studio-primitives";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", short: "Monitor", icon: LayoutDashboard },
@@ -42,13 +44,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [queueCount, setQueueCount] = useState(0);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAuthPage = pathname === "/login" || pathname === "/setup";
   const commandRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const html = document.documentElement;
-    html.classList.add("dark");
+    const stored = localStorage.getItem("short-generator-theme");
+    const selected = stored === "light" || stored === "dark" ? stored : window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    html.dataset.theme = selected;
+    html.classList.toggle("dark", selected === "dark");
+    if (selected !== "dark") requestAnimationFrame(() => setTheme(selected));
+    const onSystemTheme = (event: MediaQueryListEvent) => {
+      if (!localStorage.getItem("short-generator-theme")) {
+        const next = event.matches ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        document.documentElement.classList.toggle("dark", next === "dark");
+        setTheme(next);
+      }
+    };
+    const preference = window.matchMedia("(prefers-color-scheme: light)");
+    preference.addEventListener("change", onSystemTheme);
+    return () => preference.removeEventListener("change", onSystemTheme);
   }, []);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    document.documentElement.classList.toggle("dark", next === "dark");
+    localStorage.setItem("short-generator-theme", next);
+  }
 
   useEffect(() => {
     let active = true;
@@ -116,8 +143,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Cari
             <kbd className="mono ml-1 rounded-sm border border-border px-1 py-px text-[10px]">Ctrl K</kbd>
           </button>
-          <Button variant="ghost" size="icon-sm" onClick={() => setCollapsed((value) => !value)} aria-label="Ciutkan rail ikon" className="hidden md:inline-flex">
+          <Button variant="ghost" size="icon-sm" onClick={() => setCollapsed((value) => !value)} aria-label="Ciutkan rail ikon" className="hidden lg:inline-flex">
             <PanelLeft className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={toggleTheme} aria-label={`Ganti ke tema ${theme === "dark" ? "terang" : "gelap"}`}>
+            <SunMoon className="size-4" />
           </Button>
           <Button variant="ghost" size="icon-sm" onClick={logout} aria-label="Keluar">
             <LogOut className="size-4" />
@@ -127,7 +157,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-h-0 flex-1">
         {/* Icon rail */}
-        <aside className={cn("hidden h-full shrink-0 flex-col items-center border-r border-border bg-card py-2 transition-[width] duration-150 md:flex", collapsed ? "w-0 overflow-hidden border-r-0" : "w-12")}>
+        <aside className={cn("hidden h-full shrink-0 flex-col items-center border-r border-border bg-card py-2 transition-[width] duration-150 md:flex", collapsed ? "w-0 overflow-hidden border-r-0" : "w-12 lg:w-60", collapsed && "lg:w-0")}>
           <nav aria-label="Navigasi utama" className="flex flex-col items-center gap-1">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
@@ -139,13 +169,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   aria-label={item.label}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "group/rail relative flex size-9 items-center justify-center rounded-md border border-transparent transition-colors",
+                    "group/rail relative flex min-h-11 w-11 items-center justify-center rounded-md border border-transparent transition-colors lg:w-[calc(100%-16px)] lg:justify-start lg:gap-3 lg:px-3",
                     active
                       ? "border-[#065f46] bg-[#123c31] text-primary"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   )}
                 >
                   <Icon className="size-4" />
+                  <span className={cn("hidden truncate text-sm lg:block", collapsed && "lg:hidden")}>{item.label}</span>
                   {active && <span className="absolute -left-[9px] h-5 w-0.5 rounded-sm bg-primary" aria-hidden="true" />}
                   <span className="pointer-events-none absolute left-[calc(100%+8px)] z-50 hidden whitespace-nowrap rounded-sm border border-border bg-popover px-2 py-1 text-[11px] text-foreground shadow-[var(--shadow)] group-hover/rail:block">
                     {item.label}
@@ -196,7 +227,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
-      <button type="button" aria-label="Perintah AI" onClick={() => setSearchOpen(true)} className="fixed right-4 bottom-[calc(86px+env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full border border-amber-300/50 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-xl transition-transform active:scale-95 md:hidden"><Sparkles className="size-6"/></button>
+      <button type="button" aria-label="Perintah AI" onClick={() => setMobileMenuOpen(true)} className="fixed right-4 bottom-[calc(86px+env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full border border-amber-300/50 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-xl transition-transform active:scale-95 md:hidden"><Sparkles className="size-6"/></button>
+
+      <BottomSheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} title="Aksi cepat" snap={0.62}>
+        <div className="grid gap-2 pb-4">
+          <button type="button" onClick={() => { setMobileMenuOpen(false); setSearchOpen(true); }} className="flex min-h-12 items-center gap-3 rounded-xl border border-border bg-background px-4 text-left"><Command className="size-4 text-primary"/>Cari halaman atau perintah</button>
+          <Link href="/series?new=1" onClick={() => setMobileMenuOpen(false)} className="flex min-h-12 items-center gap-3 rounded-xl border border-border bg-background px-4"><Sparkles className="size-4 text-primary"/>Buat video dengan AI</Link>
+          <button type="button" onClick={toggleTheme} className="flex min-h-12 items-center gap-3 rounded-xl border border-border bg-background px-4 text-left"><SunMoon className="size-4 text-primary"/>Ganti ke tema {theme === "dark" ? "terang" : "gelap"}</button>
+        </div>
+      </BottomSheet>
 
       {searchOpen && (
         <div ref={commandRef} className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-3 pt-[12dvh]" onClick={() => setSearchOpen(false)} role="presentation">
