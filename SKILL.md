@@ -222,6 +222,8 @@ Aplikasi mendefinisikan peran (`bibleWriter`, `characterDesigner`, `setDesigner`
 
 Gunakan tokens terpusat di `src/app/design-tokens.css`, primitive `src/components/ui/studio-primitives.tsx`, warna emerald untuk aksi dan kuning senja untuk state AI. UI harus mobile-first, target sentuh ≥44px, aman terhadap safe-area iOS, fokus keyboard terlihat, serta menghormati `prefers-reduced-motion`. Animasi UI umum hanya transform/opacity; jangan animasikan layout/blur berat. Tab strip horizontal harus memakai auto-scroll ke tab aktif; sheet dipakai untuk editor kontekstual di layar sempit.
 
+Jalankan `npm run test:e2e` untuk tes browser iPhone 390px; screenshot baseline berada di `docs/screens/`.
+
 **User:** "Buatkan short Minecraft episode 1, tema: Steve menemukan desa kosong"
 → Buat / update Bible → 3 ide hook → minta pilih / langsung gas bila user bilang gas → naskah + timing + shot list → scene + komposisi → preview → render → review → serahkan mp4 + review.
 

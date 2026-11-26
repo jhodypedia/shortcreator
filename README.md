@@ -86,3 +86,5 @@ Caption word-level ditampilkan di sekitar 70–78% tinggi frame, paling banyak d
 ## 6. UI Studio Kreator (mobile-first)
 
 Design tokens studio voxel ada terpusat di `src/app/design-tokens.css`: emerald sebagai aksi utama, kuning senja untuk highlight AI, radius 10–20px, serta tempo/easing animasi. Primitive mobile bersama ada di `src/components/ui/studio-primitives.tsx` (bottom sheet, tab geser, empty state, progress ring, tombol AI). Gunakan target sentuh minimal 44px, safe-area `safe-top`/`safe-bottom`, state focus-visible, dan animasikan hanya transform/opacity untuk interaksi umum. CSS mendukung `prefers-reduced-motion`. Hindari efek blur berlapis dan lazy-load/pratinjau 3D hanya saat dibutuhkan.
+
+Tes browser mobile: `npm run test:e2e` (Playwright, viewport iPhone 390px). Screenshot baseline ada di `docs/screens/setup-390x844.png`.
