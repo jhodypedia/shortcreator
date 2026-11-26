@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import os from "node:os";
 import { db } from "./db";
+import { AiRoleSchema, ROLE_DEFAULTS, type AiRole, type AiRoleSettings } from "./ai/types";
 
 export type AiProviderType = "9router" | "openai" | "anthropic" | "local";
 export type TtsProviderType = "edge-tts" | "openai" | "elevenlabs" | "local";
@@ -12,6 +13,8 @@ export interface AppSettingsData {
     model: string;
     hasApiKey: boolean;
     maskedApiKey: string;
+    roles: Record<AiRole, AiRoleSettings>;
+    maxCostPerEpisodeUsd: number;
   };
   tts: {
     provider: TtsProviderType;
@@ -112,6 +115,21 @@ export async function getAppSettings(): Promise<{
     ? decryptSecret(map.get("ai.apiKey")!)
     : process.env.AI_API_KEY || "";
 
+  const roles = Object.fromEntries(AiRoleSchema.options.map((role) => {
+    const defaults = ROLE_DEFAULTS[role];
+    const parse = (field: keyof AiRoleSettings, fallback: string | number) => {
+      const value = map.get(`ai.roles.${role}.${field}`);
+      return value === undefined ? fallback : field === "temperature" || field === "maxTokens" || field === "timeoutMs" ? Number(value) : value;
+    };
+    return [role, {
+      model: String(parse("model", aiModel)),
+      fallbackModel: String(parse("fallbackModel", aiModel)),
+      temperature: Number(parse("temperature", defaults.temperature)),
+      maxTokens: Number(parse("maxTokens", defaults.maxTokens)),
+      timeoutMs: Number(parse("timeoutMs", defaults.timeoutMs)),
+    }];
+  })) as Record<AiRole, AiRoleSettings>;
+
   const ttsProvider = (map.get("tts.provider") ||
     process.env.TTS_PROVIDER ||
     "edge-tts") as TtsProviderType;
@@ -145,6 +163,8 @@ export async function getAppSettings(): Promise<{
         model: aiModel,
         hasApiKey: Boolean(aiRawKey),
         maskedApiKey: maskSecret(aiRawKey),
+        roles,
+        maxCostPerEpisodeUsd: Number(map.get("ai.maxCostPerEpisodeUsd") || "0.5"),
       },
       tts: {
         provider: ttsProvider,
@@ -177,6 +197,8 @@ export async function saveAppSettings(input: {
     model?: string;
     apiKey?: string;
     clearApiKey?: boolean;
+    roles?: Partial<Record<AiRole, Partial<AiRoleSettings>>>;
+    maxCostPerEpisodeUsd?: number;
   };
   tts?: {
     provider?: TtsProviderType;
@@ -198,6 +220,15 @@ export async function saveAppSettings(input: {
   const ops: Array<{ key: string; value: string }> = [];
 
   if (input.ai) {
+    if (input.ai.roles) {
+      for (const [roleName, value] of Object.entries(input.ai.roles)) {
+        const role = AiRoleSchema.parse(roleName);
+        if (value.model !== undefined) ops.push({ key: `ai.roles.${role}.model`, value: value.model.trim() });
+        if (value.fallbackModel !== undefined) ops.push({ key: `ai.roles.${role}.fallbackModel`, value: value.fallbackModel.trim() });
+        for (const field of ["temperature", "maxTokens", "timeoutMs"] as const) if (value[field] !== undefined) ops.push({ key: `ai.roles.${role}.${field}`, value: String(value[field]) });
+      }
+    }
+    if (input.ai.maxCostPerEpisodeUsd !== undefined) ops.push({ key: "ai.maxCostPerEpisodeUsd", value: String(input.ai.maxCostPerEpisodeUsd) });
     if (input.ai.provider) {
       ops.push({ key: "ai.provider", value: input.ai.provider });
     }

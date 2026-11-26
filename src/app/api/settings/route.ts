@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAppSettings, saveAppSettings } from "@/lib/settings";
+import { AiRoleSchema } from "@/lib/ai/types";
 
 const SettingsPatchSchema = z.object({
   ai: z
@@ -10,6 +11,8 @@ const SettingsPatchSchema = z.object({
       model: z.string().optional(),
       apiKey: z.string().optional(),
       clearApiKey: z.boolean().optional(),
+      roles: z.record(AiRoleSchema, z.object({ model: z.string().optional(), fallbackModel: z.string().optional(), temperature: z.number().min(0).max(2).optional(), maxTokens: z.number().int().positive().optional(), timeoutMs: z.number().int().positive().optional() })).optional(),
+      maxCostPerEpisodeUsd: z.number().min(0).max(100).optional(),
     })
     .optional(),
   tts: z

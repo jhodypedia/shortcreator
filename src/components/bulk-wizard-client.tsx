@@ -90,7 +90,7 @@ export function BulkWizardClient({
           .slice(0, 4);
         const hookLower = o.hook.toLowerCase();
         const connected =
-          o.continuityChecked || keywords.some((kw) => hookLower.includes(kw));
+          (!o.continuityChecked && keywords.some((kw) => hookLower.includes(kw)));
         if (!connected) {
           warnings.push(
             `Eps ${o.number}: hook belum terlihat menyebut cliffhanger Eps ${outlines[i - 1].number}.`

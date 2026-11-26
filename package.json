@@ -8,12 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run tests src/lib/ai",
     "test:e2e": "playwright test",
     "seed": "tsx prisma/seed.ts",
-    "worker": "tsx src/lib/queue-worker.ts",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
-    "render-test": "tsx scripts/render-test.ts"
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\""
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -28,7 +28,7 @@ export async function GET(
   const storageRoot = path.resolve(process.cwd(), "storage");
   const target = path.resolve(storageRoot, ...segments);
 
-  if (!target.startsWith(storageRoot)) {
+  if (!target.startsWith(storageRoot + path.sep)) {
     return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
   }
 

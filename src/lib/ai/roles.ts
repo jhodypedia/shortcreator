@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AiRole } from "./types";
+import { AI_ROLES, type AiRole } from "./types";
 
 const text = z.string().min(1);
 const bible = z.object({ premise: text, audience: text, tone: text, language: text, world: z.object({ rules: z.array(z.string()), impossible: z.array(z.string()), taboo: z.array(z.string()) }), characters: z.array(z.record(z.string(), z.unknown())).min(1), sets: z.array(z.record(z.string(), z.unknown())).min(1), visualStyle: z.object({ palette: z.array(z.string()), captionFont: z.string(), cameraDefault: z.string(), accentColor: z.string(), emoji: z.string() }), continuity: z.object({ summary: z.string(), activeCliffhanger: z.string(), threads: z.array(z.string()), characterStates: z.record(z.string(), z.string()) }), neverDo: z.array(z.string()), changelog: z.array(z.record(z.string(), z.unknown())) }).passthrough();
@@ -18,3 +18,5 @@ export const ROLE_DEFINITIONS = {
   critic: { system: "Nilai hook 0-3 detik, twist, durasi 15-60 detik, keamanan, Bible/neverDo, humor. JSON saja.", input: z.object({ episode: z.unknown(), bible: z.unknown() }), output: critique },
   editor: { system: "Terjemahkan perintah natural menjadi patch JSON minimal dengan operasi set/update/delete dan path eksplisit. JSON saja.", input: z.object({ command: text, state: z.unknown() }), output: patch },
 } satisfies Record<AiRole, { system: string; input: z.ZodType; output: z.ZodType }>;
+
+if (Object.keys(ROLE_DEFINITIONS).length !== AI_ROLES.length) throw new Error("AI role definitions must cover AI_ROLES exactly");

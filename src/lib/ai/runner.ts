@@ -59,12 +59,12 @@ function parseRouterPayload(raw: string): { text: string; inputTokens: number; o
   return { text, inputTokens, outputTokens };
 }
 
-async function requestModel(model: string, temperature: number, system: string, prompt: string) {
+async function requestModel(model: string, temperature: number, maxTokens: number, timeoutMs: number, system: string, prompt: string) {
   const { publicSettings, secrets } = await getAppSettings();
   const { provider, baseUrl } = publicSettings.ai;
   if (provider === "local") throw new Error("Penyedia AI lokal tidak menyediakan endpoint generatif.");
   if (provider === "anthropic") {
-    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/v1/messages`, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": secrets.aiApiKey, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model, max_tokens: 4096, temperature, system, messages: [{ role: "user", content: prompt }] }), signal: AbortSignal.timeout(60000) });
+    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/v1/messages`, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": secrets.aiApiKey, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model, max_tokens: maxTokens, temperature, system, messages: [{ role: "user", content: prompt }] }), signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`AI HTTP ${res.status}: ${(await res.text()).slice(0, 400)}`);
     const raw = await res.text();
     const parsed = parseRouterPayload(raw);
@@ -77,7 +77,7 @@ async function requestModel(model: string, temperature: number, system: string, 
   }
   const clean = baseUrl.replace(/\/$/, "");
   const endpoint = clean.endsWith("/v1") ? `${clean}/chat/completions` : `${clean}/v1/chat/completions`;
-  const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(secrets.aiApiKey ? { Authorization: `Bearer ${secrets.aiApiKey}` } : {}) }, body: JSON.stringify({ model, temperature, response_format: { type: "json_object" }, messages: [{ role: "system", content: system }, { role: "user", content: prompt }] }), signal: AbortSignal.timeout(60000) });
+  const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(secrets.aiApiKey ? { Authorization: `Bearer ${secrets.aiApiKey}` } : {}) }, body: JSON.stringify({ model, temperature, max_tokens: maxTokens, response_format: { type: "json_object" }, messages: [{ role: "system", content: system }, { role: "user", content: prompt }] }), signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok) throw new Error(`AI HTTP ${res.status}: ${(await res.text()).slice(0, 400)}`);
   const raw = await res.text();
   const parsed = parseRouterPayload(raw);
@@ -87,20 +87,20 @@ async function requestModel(model: string, temperature: number, system: string, 
 
 export async function runAiRole<R extends AiRole>(role: R, input: unknown, options: RunOptions = {}) {
   const def = ROLE_DEFINITIONS[role];
-  const validInput = def.input.safeParse(input);
-  if (!validInput.success) throw new Error(`Invalid ${role} input: ${validInput.error.message}`);
   const { publicSettings } = await getAppSettings();
   const cfg = publicSettings.ai.roles[role];
   const start = performance.now();
-  const run = await db.aiRun.create({ data: { role, model: cfg.model, input: JSON.parse(JSON.stringify(validInput.data)), status: "running" } });
+  const validInput = def.input.safeParse(input);
+  const run = await db.aiRun.create({ data: { role, model: cfg.model, input: JSON.parse(JSON.stringify(input ?? null)), status: "running" } });
   let lastError = "No valid output"; let inputTokens = 0; let outputTokens = 0;
   try {
+    if (!validInput.success) throw new Error(`Invalid ${role} input: ${validInput.error.message}`);
     for (const model of [...new Set([cfg.model, cfg.fallbackModel])]) {
       let validationError = "";
       for (let retry = 0; retry <= 2; retry++) {
-        options.onProgress?.({ stage: role, percent: 10 + retry * 25, text: retry ? `Memperbaiki validasi (${retry}/2)…` : `Menghubungi ${model}…` });
+          options.onProgress?.({ stage: role, percent: 10 + retry * 25, text: retry ? `Mencoba ulang (${retry}/2)…` : `Menghubungi ${model}…` });
         try {
-          const response = await requestModel(model, cfg.temperature, def.system, JSON.stringify({ input: validInput.data, previousValidationError: validationError || undefined, format: "JSON only" }));
+          const response = await requestModel(model, cfg.temperature, cfg.maxTokens, cfg.timeoutMs, def.system, JSON.stringify({ input: validInput.data, previousValidationError: validationError || undefined, format: "JSON only" }));
           inputTokens += response.inputTokens; outputTokens += response.outputTokens;
           let raw: unknown;
           try { raw = JSON.parse(response.text); } catch { throw new Error("Output AI bukan JSON valid."); }

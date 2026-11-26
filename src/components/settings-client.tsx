@@ -44,6 +44,8 @@ export function SettingsClient({
   });
   const [testingAi, setTestingAi] = useState(false);
   const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
+  const [roleSettings, setRoleSettings] = useState(initialSettings.ai.roles);
+  const [maxCost, setMaxCost] = useState(initialSettings.ai.maxCostPerEpisodeUsd);
 
   // TTS state
   const [ttsProvider, setTtsProvider] = useState<TtsProviderType>(initialSettings.tts.provider);
@@ -92,6 +94,8 @@ export function SettingsClient({
             provider: aiProvider,
             baseUrl: aiBaseUrl,
             model: aiModel,
+            roles: roleSettings,
+            maxCostPerEpisodeUsd: maxCost,
             ...(aiApiKey.trim() ? { apiKey: aiApiKey.trim() } : {}),
             ...(clearAiKey ? { clearApiKey: true } : {}),
           },
@@ -330,6 +334,32 @@ export function SettingsClient({
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">AI — Model per Peran</CardTitle>
+          <CardDescription>Atur model utama, fallback, dan temperatur secara terpisah untuk tiap peran kreatif.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {Object.entries(roleSettings).map(([role, config]) => (
+            <div key={role} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3">
+              <Label className="self-center">{role}</Label>
+              <Input aria-label={`${role} model`} value={config.model} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], model: e.target.value } }))} />
+              <div className="flex gap-2">
+                <Input aria-label={`${role} fallback`} value={config.fallbackModel} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], fallbackModel: e.target.value } }))} />
+                <Input aria-label={`${role} temperature`} type="number" min="0" max="2" step="0.05" className="w-24" value={config.temperature} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], temperature: Number(e.target.value) } }))} />
+                <Input aria-label={`${role} max tokens`} type="number" min="1" value={config.maxTokens} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], maxTokens: Number(e.target.value) } }))} />
+                <Input aria-label={`${role} timeout ms`} type="number" min="1" value={config.timeoutMs} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], timeoutMs: Number(e.target.value) } }))} />
+                <Button variant="outline" size="sm" disabled={testingAi} onClick={handleTestAiConnection}>Tes</Button>
+              </div>
+            </div>
+          ))}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1"><Label htmlFor="ai-max-cost">Batas biaya per episode (USD)</Label><Input id="ai-max-cost" type="number" min="0" step="0.1" value={maxCost} onChange={(e) => setMaxCost(Number(e.target.value))} /></div>
+            <Button variant="outline" onClick={async () => { const res = await fetch("/api/settings", { method: "DELETE" }); if (res.ok) { toast.success("Konfigurasi AI kembali ke default"); router.refresh(); } }}>Reset ke default</Button>
+          </div>
         </CardContent>
       </Card>
 

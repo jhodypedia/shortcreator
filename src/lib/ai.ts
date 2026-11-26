@@ -1,6 +1,6 @@
 import { BulkOutlineItem, ScriptLine, ScriptLineSchema, SeriesBible } from "./schemas";
 import { inferActionFromText } from "./stageDirector";
-import { getAppSettings } from "./settings";
+import { runAiRole } from "./ai/runner";
 import { estimateLineDuration } from "./timing";
 import { ContinuitySnapshot } from "./continuity";
 
@@ -12,68 +12,9 @@ export interface HookIdea {
   cliffhanger: string;
 }
 
-async function callConfiguredAi(prompt: string, systemPrompt: string): Promise<string | null> {
-  const { publicSettings, secrets } = await getAppSettings();
-  const { provider, baseUrl, model } = publicSettings.ai;
-
-  if (provider === "local") return null;
-  if (!secrets.aiApiKey && provider !== "9router") return null;
-
-  try {
-    if (provider === "anthropic") {
-      const endpoint = `${baseUrl.replace(/\/$/, "")}/v1/messages`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": secrets.aiApiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 2048,
-          system: systemPrompt,
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: AbortSignal.timeout(25000),
-      });
-      if (!res.ok) return null;
-      const json = await res.json();
-      return json?.content?.[0]?.text ?? null;
-    }
-
-    // 9router atau OpenAI-compatible
-    const cleanBase = baseUrl.replace(/\/$/, "");
-    const endpoint = cleanBase.endsWith("/v1")
-      ? `${cleanBase}/chat/completions`
-      : `${cleanBase}/v1/chat/completions`;
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (secrets.aiApiKey) {
-      headers.Authorization = `Bearer ${secrets.aiApiKey}`;
-    }
-
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model,
-        temperature: 0.8,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
-        ],
-      }),
-      signal: AbortSignal.timeout(25000),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json?.choices?.[0]?.message?.content ?? null;
-  } catch {
-    return null;
-  }
+async function configuredAiText(role: "bibleWriter" | "scriptwriter", input: Record<string, unknown>): Promise<string> {
+  const { data } = await runAiRole(role, input);
+  return JSON.stringify(data);
 }
 
 function extractJsonBlock<T>(raw: string): T | null {
@@ -99,8 +40,6 @@ export async function generateHookIdeas(params: {
   const set1 = params.bible.sets[0]?.name ?? "Alun-alun";
   const activeCliff = params.continuity?.activeCliffhanger;
 
-  const systemPrompt =
-    "Kamu penulis naskah YouTube Shorts 3D voxel berbahasa Indonesia. Aturan: NO copy content, transformatif, langsung mulai hook di 3 detik pertama tanpa 'halo guys', 1 ide wajib punya Hook | Conflict | Twist | Payoff | Cliffhanger. Balas HANYA JSON array valid.";
   const prompt = `Series: ${params.seriesName} (tone: ${params.tone})
 Premise: ${params.bible.premise}
 Karakter: ${params.bible.characters.map((c) => `${c.name} (${c.role})`).join(", ")}
@@ -108,7 +47,8 @@ Set tersedia: ${params.bible.sets.map((s) => s.name).join(", ")}
 ${activeCliff ? `WAJIB melanjutkan cliffhanger: ${activeCliff}` : ""}
 Buat tepat 3 ide episode baru dalam JSON array dengan key: hook, conflict, twist, payoff, cliffhanger.`;
 
-  const aiRaw = await callConfiguredAi(prompt, systemPrompt);
+  let aiRaw = "";
+  try { aiRaw = await configuredAiText("bibleWriter", { idea: prompt }); } catch (error) { throw new Error(`Gagal menghasilkan ide episode: ${error instanceof Error ? error.message : String(error)}`); }
   if (aiRaw) {
     const parsed = extractJsonBlock<HookIdea[]>(aiRaw);
     if (Array.isArray(parsed) && parsed.length >= 1) {
@@ -162,8 +102,6 @@ export async function generateScriptLines(params: {
   const c2 = params.bible.characters[1]?.name ?? c1;
   const setId = params.bible.sets[0]?.id ?? "set-1";
 
-  const systemPrompt =
-    "Kamu penulis sekaligus sutradara panggung Shorts 9:16 (25-40 detik). Bahasa lisan Indonesia, maksimal 10 kata per baris. Keluarkan HANYA JSON array; SETIAP item wajib mengisi speaker, text, emotion, action, actionTarget, prop, moveTo, lookAt, sfx, reactions. Action fisik minimal satu selain talk/idle pada tiap beat. action salah satu idle|walk|talk|point|wave|nod|shake_head|surprised|laugh|slam_table|drop_item|pick_up|hand_over|think|angry|turn_to. moveTo: counter|pintu|tengah_jalan|belakang_warung atau null. reactions array berisi {character,action,delayFrames}. Isi field kosong dengan null atau [].";
   const prompt = `Judul: ${params.title}
 Karakter tersedia: ${params.bible.characters.map((c) => c.name).join(", ")}
 ${params.cliffhangerFrom ? `Menjawab cliffhanger lalu: ${params.cliffhangerFrom}` : ""}
@@ -175,7 +113,8 @@ Cliffhanger baru: ${params.cliffhanger}
 Buat 7 sampai 8 baris dialog singkat (masing-masing <= 10 kata), serta blocking yang masuk akal dan posisi berbeda sepanjang adegan. ` +
     `JSON item wajib: {beat,speaker,text,emotion,action,actionTarget,prop,moveTo,lookAt,sfx,reactions}.`;
 
-  const aiRaw = await callConfiguredAi(prompt, systemPrompt);
+  let aiRaw = "";
+  try { aiRaw = await configuredAiText("scriptwriter", { idea: prompt, bible: params.bible }); } catch (error) { throw new Error(`Gagal menghasilkan naskah: ${error instanceof Error ? error.message : String(error)}`); }
   if (aiRaw) {
     const parsed = extractJsonBlock<unknown>(aiRaw);
     if (Array.isArray(parsed) && parsed.length >= 4) {
@@ -289,8 +228,6 @@ export async function generateBulkOutlines(params: {
   const setNames = params.bible.sets.map((s) => s.name);
   const startCliff = params.continuity?.activeCliffhanger || "";
 
-  const systemPrompt =
-    "Kamu showrunner serial animasi Shorts 3D. Buat outline serial bersambung yang TIDAK PERNAH mereset cerita. Cliffhanger episode N WAJIB langsung dijawab oleh hook episode N+1. Setiap episode harus unik. Balas HANYA JSON array.";
   const prompt = `Series: ${params.seriesName} (${params.tone})
 Premise: ${params.bible.premise}
 Karakter: ${params.bible.characters.map((c) => c.name).join(", ")}
@@ -299,7 +236,8 @@ Rentang Episode: ${params.fromEps} sampai ${params.toEps} (${count} episode).
 ${startCliff ? `Episode ${params.fromEps} WAJIB melanjutkan cliffhanger aktif: "${startCliff}"` : ""}
 Format tiap item JSON: { "number": number, "title": string, "hook": string, "conflict": string, "twist": string, "cliffhanger": string, "cliffhangerFrom": string }.`;
 
-  const aiRaw = await callConfiguredAi(prompt, systemPrompt);
+  let aiRaw = "";
+  try { aiRaw = await configuredAiText("scriptwriter", { idea: prompt, bible: params.bible }); } catch (error) { throw new Error(`Gagal menghasilkan outline: ${error instanceof Error ? error.message : String(error)}`); }
   if (aiRaw) {
     const parsed = extractJsonBlock<BulkOutlineItem[]>(aiRaw);
     if (Array.isArray(parsed) && parsed.length === count) {

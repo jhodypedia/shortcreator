@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, logActivity } from "@/lib/db";
 import { createDefaultBible } from "@/lib/bible";
-import { CreateSeriesInputSchema } from "@/lib/schemas";
+import { CreateSeriesInputSchema, SeriesBibleSchema } from "@/lib/schemas";
 import { runAiRoleJson } from "@/lib/ai/runner";
 
 export async function GET() {
@@ -51,8 +51,23 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `AI belum dapat membuat Bible: ${generationError}. Coba lagi atau gunakan model lain di Pengaturan → AI.` }, { status: 503 });
       }
       if (!generated) return NextResponse.json({ error: "AI belum menghasilkan Bible. Silakan coba lagi." }, { status: 503 });
-      bible = { ...createDefaultBible({ name: parsed.data.name, theme: parsed.data.theme, tone: parsed.data.tone, visualStyle: parsed.data.visualStyle }), ...generated.data };
+      const defaults = createDefaultBible({ name: parsed.data.name, theme: parsed.data.theme, tone: parsed.data.tone, visualStyle: parsed.data.visualStyle });
+      let candidate: unknown = { ...defaults, ...generated.data };
+      let validation = SeriesBibleSchema.safeParse(candidate);
+      if (!validation.success) {
+        const repaired = await runAiRoleJson("bibleWriter", { idea: `Perbaiki Bible berikut agar valid. Error Zod: ${validation.error.message}\nBible: ${JSON.stringify(candidate)}` });
+        candidate = { ...defaults, ...repaired.data };
+        validation = SeriesBibleSchema.safeParse(candidate);
+      }
+      if (!validation.success) {
+        return NextResponse.json({ error: "Bible AI tidak valid setelah satu kali perbaikan.", details: validation.error.issues }, { status: 422 });
+      }
+      bible = validation.data;
     }
+
+    const validatedBible = SeriesBibleSchema.safeParse(bible);
+    if (!validatedBible.success) return NextResponse.json({ error: "Bible tidak valid.", details: validatedBible.error.issues }, { status: 422 });
+    bible = validatedBible.data;
 
     const created = await db.series.create({
       data: {
