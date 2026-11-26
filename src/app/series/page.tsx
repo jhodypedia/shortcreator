@@ -11,11 +11,10 @@ export default async function SeriesPage({
   const sp = await searchParams;
   const series = await db.series.findMany({
     orderBy: { updatedAt: "desc" },
-    include: {
-      episodes: {
-        orderBy: { number: "asc" },
-        select: { id: true, number: true, title: true, status: true },
-      },
+    select: {
+      id: true, name: true, theme: true, audience: true, tone: true, language: true,
+      visualStyle: true, bibleVersion: true, bible: true, updatedAt: true,
+      episodes: { orderBy: { number: "asc" }, select: { id: true, number: true, title: true, status: true } },
     },
   });
 
