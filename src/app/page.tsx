@@ -62,16 +62,17 @@ export default async function DashboardPage() {
   const seriesCounts = seriesList.map((s) => s.episodes.length);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="truncate">Status Studio</h1>
-          <p className="page-description">Monitor produksi serial shorts dari satu workspace.</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-primary">Studio kreator voxel</p>
+          <h1 className="truncate">Apa yang kita buat hari ini?</h1>
+          <p className="page-description">Semua ide bisa jadi serial Shorts. Mulai dari satu kalimat.</p>
         </div>
         <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
           <Link href="/series?new=1" className="contents">
-            <Button className="w-full sm:w-auto">
-              <Plus className="size-3.5" /> Serial Baru
+            <Button size="lg" className="w-full sm:w-auto">
+              <Clapperboard className="size-4" /> Buat Video dengan AI
             </Button>
           </Link>
           <Link href="/queue" className="contents">
@@ -98,7 +99,7 @@ export default async function DashboardPage() {
       )}
 
       {/* Status strip */}
-      <section aria-label="Metrik studio" className="overflow-hidden rounded-lg border border-border bg-card">
+      <section aria-label="Metrik studio" className="studio-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
           <h2 className="panel-title">Monitor</h2>
           <span className="mono flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -123,7 +124,7 @@ export default async function DashboardPage() {
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         {/* Queue panel */}
-        <section className="overflow-hidden rounded-lg border border-border bg-card">
+        <section className="studio-card overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
             <h2 className="panel-title">Antrean Render</h2>
             <Link href="/queue" className="text-[11px] text-primary hover:text-[#34d399]">Kelola</Link>
@@ -184,7 +185,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Series panel */}
-        <section className="overflow-hidden rounded-lg border border-border bg-card">
+        <section className="studio-card overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
             <h2 className="panel-title">Serial</h2>
             <Link href="/series" className="text-[11px] text-primary hover:text-[#34d399]">Semua</Link>
@@ -208,10 +209,10 @@ export default async function DashboardPage() {
                 const latest = s.episodes[s.episodes.length - 1];
                 const seriesQueue = queueItems.filter((q) => q.episode.seriesId === s.id && q.status !== "failed").length;
                 return (
-                  <Link key={s.id} href={`/series/${s.id}`} className="group flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-secondary">
-                    <div className="relative flex aspect-[9/16] w-8 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-border bg-[#0b0c0e]">
-                      <span className="absolute inset-x-0 top-0 h-0.5" style={{ backgroundColor: accent }} />
-                      <Film className="size-3 text-muted-foreground" />
+                    <Link key={s.id} href={`/series/${s.id}`} className="group flex min-h-[76px] items-center gap-3 px-4 py-3 transition-colors hover:bg-secondary">
+                      <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-[#0b0c0e] text-2xl transition-transform duration-200 group-hover:rotate-3 group-hover:scale-105">
+                        <span className="absolute inset-x-0 top-0 h-0.5" style={{ backgroundColor: accent }} />
+                        {bible?.visualStyle?.emoji || <Film className="size-4 text-muted-foreground" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[12px] font-medium group-hover:text-primary">{s.name}</p>

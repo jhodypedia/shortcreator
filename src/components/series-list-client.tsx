@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { SeriesBible } from "@/lib/schemas";
+import { EmptyState } from "@/components/ui/studio-primitives";
 
 interface SeriesSummary {
   id: string;
@@ -106,7 +107,7 @@ export function SeriesListClient({
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1>Daftar Serial</h1>
+          <h1>Serial kreasiku</h1>
           <p className="page-description">
             Setiap serial dikunci oleh Panduan Serial agar karakter dan latar konsisten.
           </p>
@@ -219,31 +220,24 @@ export function SeriesListClient({
       </div>
 
       <section className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
-          <h2 className="panel-title">Semua Serial</h2>
-          <span className="mono text-[10px] text-muted-foreground">{seriesList.length} entri</span>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h2>Semua serial</h2>
+          <span className="studio-chip text-xs text-muted-foreground">{seriesList.length} serial</span>
         </div>
         {seriesList.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-            <span aria-hidden="true" className="pixel-empty-art" />
-            <p className="text-[13px] font-medium">Belum ada serial tersimpan</p>
-            <Button size="sm" onClick={() => setOpen(true)}>
-              <Plus className="size-3.5" /> Buat Serial Pertama
-            </Button>
-          </div>
+          <div className="p-4"><EmptyState title="Dunia voxelmu dimulai di sini" description="Ceritakan idemu. AI akan membangun bible, karakter, set, dan episode pertamamu." action={<Button size="lg" onClick={() => setOpen(true)}><Plus className="size-4"/>Buat serial pertama</Button>} /></div>
         ) : (
-          <div className="grid gap-px bg-border md:grid-cols-2">
+          <div className="grid gap-3 bg-transparent p-3 sm:grid-cols-2 xl:grid-cols-3">
             {seriesList.map((s) => {
               const bible = s.bible as SeriesBible;
               const accent = bible?.visualStyle?.accentColor || "#10b981";
               const emoji = bible?.visualStyle?.emoji || "🎬";
               return (
-                <div key={s.id} className="relative bg-card p-3">
-                  <div className="absolute inset-y-0 left-0 w-0.5" style={{ backgroundColor: accent }} aria-hidden="true" />
+                <div key={s.id} className="studio-card touch-card relative p-4 transition-transform duration-200 hover:-translate-y-1" style={{ borderTopColor: accent }}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2.5">
                       <div
-                        className="flex aspect-[9/16] w-9 shrink-0 items-center justify-center rounded-sm border text-base"
+                        className="flex size-14 shrink-0 items-center justify-center rounded-2xl border text-2xl transition-transform duration-200 hover:rotate-6 hover:scale-105"
                         style={{ backgroundColor: `${accent}1f`, borderColor: `${accent}66` }}
                         aria-hidden="true"
                       >
@@ -255,25 +249,25 @@ export function SeriesListClient({
                           <Badge variant="outline">v{s.bibleVersion}</Badge>
                         </div>
                         <p className="truncate text-[11px] text-muted-foreground">
-                          {s.episodes.length} episode · {s.tone} · {s.visualStyle}
+                          {s.episodes.length} episode · {s.tone === "lucu" ? "komedi" : s.tone === "tegang" ? "menegangkan" : "hangat"} · {s.visualStyle === "voxel-3d" ? "Voxel 3D" : "Kartun 3D"}
                         </p>
                       </div>
                     </div>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       onClick={() => handleDelete(s.id, s.name)}
                       aria-label="Hapus series"
                     >
                       <Trash2 className="size-3.5 text-destructive" />
                     </Button>
                   </div>
-                  <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+                  <p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
                     {bible?.premise}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <Link href={`/series/${s.id}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">Edit Bible</Button>
+                      <Button variant="outline" size="sm" className="w-full">Panduan serial</Button>
                     </Link>
                     <Link href={`/series/${s.id}/episodes`} className="flex-1">
                       <Button size="sm" className="w-full">Episode ({s.episodes.length})</Button>

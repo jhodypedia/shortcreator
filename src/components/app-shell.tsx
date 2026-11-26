@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -14,6 +15,7 @@ import {
   PanelLeft,
   Settings,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
   const isAuthPage = pathname === "/login" || pathname === "/setup";
   const commandRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +49,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const html = document.documentElement;
     html.classList.add("dark");
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/queue/status").then((response) => response.json()).then((data) => { if (active) setQueueCount(Array.isArray(data?.items) ? data.items.filter((item: {status:string}) => item.status === "queued" || item.status === "rendering").length : 0); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [pathname]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -77,11 +86,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden bg-background text-foreground">
       {/* Studio toolbar */}
-      <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-2 sm:px-3">
+      <header className="safe-top flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/90 px-3 backdrop-blur-xl sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <Link href="/" className="flex shrink-0 items-center gap-2" aria-label="Short Generator">
-            <span aria-hidden="true" className="app-logo size-7"><Clapperboard className="size-3.5" /></span>
-            <span className="hidden text-[13px] font-semibold tracking-tight sm:inline">Short Generator</span>
+            <span aria-hidden="true" className="app-logo"><Clapperboard className="size-4" /></span>
+            <span className="hidden text-sm font-bold tracking-tight sm:inline">Short Generator</span>
           </Link>
           <ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
           <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -167,7 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav aria-label="Navigasi utama" className="fixed right-0 bottom-0 left-0 z-40 grid grid-cols-5 border-t border-border bg-card pt-1 pb-[max(env(safe-area-inset-bottom),4px)] md:hidden">
+      <nav aria-label="Navigasi utama" className="bottom-nav-float fixed left-1/2 z-40 grid w-[min(94vw,440px)] -translate-x-1/2 grid-cols-5 px-1.5 pt-1.5 pb-[max(env(safe-area-inset-bottom),6px)] backdrop-blur-xl md:hidden">
         {MOBILE_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -176,15 +185,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={cn("relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1 text-[10px] font-medium leading-tight", active ? "text-primary" : "text-muted-foreground")}
+              className={cn("relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1 text-[10px] font-medium leading-tight transition-colors", active ? "text-primary" : "text-muted-foreground")}
             >
-              <Icon className="size-5 shrink-0" />
+              <motion.span animate={{ scale: active ? 1.12 : 1, y: active ? -1 : 0 }} transition={{ type: "spring", stiffness: 430, damping: 20 }}><Icon className="size-5 shrink-0" /></motion.span>
               <span className="max-w-full truncate">{item.label}</span>
+              {item.href === "/queue" && queueCount > 0 && <span className="absolute top-0.5 right-[calc(50%-19px)] min-w-4 rounded-full bg-amber-500 px-1 text-center text-[9px] font-bold leading-4 text-[#1b160a]">{queueCount > 9 ? "9+" : queueCount}</span>}
               {active && <span className="absolute top-0 h-0.5 w-6 rounded-b-sm bg-primary" aria-hidden="true" />}
             </Link>
           );
         })}
       </nav>
+
+      <button type="button" aria-label="Perintah AI" onClick={() => setSearchOpen(true)} className="fixed right-4 bottom-[calc(86px+env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full border border-amber-300/50 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-xl transition-transform active:scale-95 md:hidden"><Sparkles className="size-6"/></button>
 
       {searchOpen && (
         <div ref={commandRef} className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-3 pt-[12dvh]" onClick={() => setSearchOpen(false)} role="presentation">
