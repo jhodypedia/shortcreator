@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { m } from "motion/react";
 import { useSyncExternalStore } from "react";
 import { prefersLightMotion } from "@/lib/device-performance";
+import { studioMotion } from "@/components/motion-provider";
 
 const STATIC_ROUTES = [/^\/episodes(?:\/|$)/];
 const subscribe = () => () => {};
@@ -22,9 +23,9 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   return (
     <m.div
       key={pathname}
-      initial={lowPower ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      initial={lowPower ? false : studioMotion.variants.page.initial}
+      animate={studioMotion.variants.page.animate}
+      transition={{ duration: studioMotion.duration.normal, ease: studioMotion.ease }}
     >
       {children}
     </m.div>

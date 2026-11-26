@@ -17,7 +17,7 @@ export function Progress({
     <div
       data-slot="progress"
       className={cn(
-        "relative h-1.5 w-full overflow-hidden rounded-sm bg-[#262a30]",
+        "relative h-2 w-full overflow-hidden rounded-full bg-[var(--studio-raised)] ring-1 ring-white/5",
         className
       )}
     >
@@ -25,11 +25,10 @@ export function Progress({
         data-slot="progress-indicator"
         data-complete={isComplete || undefined}
         className={cn(
-          "relative h-full rounded-sm transition-[width] duration-300",
+          "relative h-full rounded-full transition-[width] duration-[var(--studio-motion-slow)]",
           isActive
             ? "bg-[linear-gradient(90deg,var(--primary),#34d399,var(--primary))] bg-[length:200%_100%] animate-[shimmer_1.8s_linear_infinite]"
-            : "bg-primary",
-          !isActive && "after:absolute after:inset-0 after:bg-[repeating-linear-gradient(90deg,transparent_0_10px,#131518_10px_12px)]"
+            : "bg-primary shadow-[0_0_12px_rgb(16_185_129_/_0.35)]",
         )}
         role="progressbar"
         aria-valuemin={0}

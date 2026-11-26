@@ -21,4 +21,11 @@
   --studio-motion-slow: 320ms;
   --studio-ease: cubic-bezier(.2,.75,.25,1);
   --studio-ease-spring: cubic-bezier(.2,1.4,.35,1);
+  --studio-motion-stagger: 36ms;
+  --studio-motion-distance: 8px;
+  --studio-font-display: var(--font-sans);
+  --studio-font-body: var(--font-sans);
+  --studio-motion-fast-seconds: .12;
+  --studio-motion-normal-seconds: .2;
+  --studio-motion-slow-seconds: .32;
 }

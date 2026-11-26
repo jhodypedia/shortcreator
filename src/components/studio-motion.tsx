@@ -3,6 +3,7 @@
 import { m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "cn";
+import { studioMotion } from "@/components/motion-provider";
 
 export function Reveal({
   children,
@@ -16,10 +17,10 @@ export function Reveal({
   return (
     <m.div
       className={className}
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={studioMotion.variants.reveal.initial}
+      whileInView={studioMotion.variants.reveal.animate}
       viewport={{ once: true, amount: 0.15 }}
-      transition={{ duration: 0.22, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: studioMotion.duration.normal, delay, ease: studioMotion.ease }}
     >
       {children}
     </m.div>
@@ -42,7 +43,7 @@ export function CountUp({
     if (started.current) return;
     started.current = true;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const duration = reduced || value === 0 ? 0 : 500;
+    const duration = reduced || value === 0 ? 0 : studioMotion.duration.slow * 1000;
     const start = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
       const progress = duration === 0 ? 1 : Math.min(1, (now - start) / duration);
@@ -95,7 +96,7 @@ export function Sparkline({
         initial={{ pathLength: 0, opacity: 0.4 }}
         whileInView={{ pathLength: 1, opacity: 1 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
+        transition={{ duration: studioMotion.duration.slow, ease: studioMotion.ease }}
       />
     </svg>
   );

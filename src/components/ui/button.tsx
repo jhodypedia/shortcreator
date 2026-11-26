@@ -3,14 +3,14 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
 const buttonVariants = cva(
-  "studio-button group/button inline-flex shrink-0 items-center justify-center rounded-[14px] border border-transparent text-[14px] font-semibold whitespace-nowrap transition-[transform,background-color,border-color,color] duration-150 ease-out outline-none select-none hover:brightness-[1.08] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:scale-[.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "studio-button group/button inline-flex shrink-0 items-center justify-center rounded-[14px] border border-transparent text-[14px] font-semibold whitespace-nowrap transition-[transform,background-color,border-color,color,box-shadow] duration-[var(--studio-motion-normal)] ease-[var(--studio-ease)] outline-none select-none hover:brightness-[1.08] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:scale-[.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground",
-        outline: "border-border bg-card text-foreground hover:border-[#46505a] hover:bg-secondary aria-expanded:bg-muted",
-        secondary: "bg-secondary text-secondary-foreground",
-        ghost: "border-transparent bg-transparent shadow-none hover:bg-muted hover:text-foreground",
+        default: "bg-primary text-primary-foreground shadow-[0_8px_24px_rgb(16_185_129_/_0.2)] hover:bg-emerald-400",
+        outline: "border-border bg-[var(--studio-raised)] text-foreground hover:border-primary/60 hover:bg-[var(--studio-surface)] aria-expanded:bg-muted",
+        secondary: "border border-border bg-[var(--studio-raised)] text-secondary-foreground hover:border-primary/40 hover:bg-[var(--studio-surface)]",
+        ghost: "border-transparent bg-transparent shadow-none hover:bg-[var(--studio-raised)] hover:text-foreground",
         destructive: "border-[#b91c1c] bg-[#b91c1c] text-white hover:bg-[#dc2626]",
         link: "text-primary underline-offset-4 hover:underline",
       },

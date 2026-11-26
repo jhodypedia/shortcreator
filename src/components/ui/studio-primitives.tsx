@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { motion, useMotionValue, animate } from "motion/react";
-import { Sparkles, X } from "lucide-react";
+import { motion } from "motion/react";
+import { Sparkles } from "lucide-react";
 import { cn } from "cn";
+import { Drawer } from "vaul";
 
 export function IconButton({ label, children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return <button aria-label={label} title={label} className={cn("studio-button focus-ring inline-flex size-11 shrink-0 items-center justify-center border border-border bg-card text-foreground hover:border-primary/60", className)} {...props}>{children}</button>;
@@ -12,21 +13,30 @@ export function IconButton({ label, children, className, ...props }: React.Butto
 export function ProgressRing({ value, size = 48, stroke = 4, className }: { value: number; size?: number; stroke?: number; className?: string }) {
   const radius = (size - stroke) / 2; const circumference = radius * 2 * Math.PI; const progress = Math.max(0, Math.min(100, value));
   return <div className={cn("relative inline-grid shrink-0 place-items-center", className)} style={{ width: size, height: size }} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
-    <svg width={size} height={size} className="-rotate-90"><circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--studio-border)" strokeWidth={stroke}/><motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--studio-emerald)" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} initial={{ strokeDashoffset: circumference }} animate={{ strokeDashoffset: circumference * (1 - progress / 100) }} transition={{ duration: .5, ease: [.2,.75,.25,1] }}/></svg>
+    <svg width={size} height={size} className="-rotate-90"><circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--studio-border)" strokeWidth={stroke}/><motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--studio-emerald)" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} initial={{ strokeDashoffset: circumference }} animate={{ strokeDashoffset: circumference * (1 - progress / 100) }} transition={{ duration: .32, ease: [.2,.75,.25,1] }}/></svg>
     <span className="absolute text-[10px] font-semibold tabular-nums">{Math.round(progress)}%</span>
   </div>;
 }
 
 export function EmptyState({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
-  return <div className="studio-card flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center"><div className="pixel-empty-art !h-16 !w-24" aria-hidden="true"/><div><h3>{title}</h3><p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p></div>{action}</div>;
+  return <div className="studio-card flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center"><div className="voxel-empty-art" aria-hidden="true"><span/><span/><span/><span/><span/><span/></div><div><h3>{title}</h3><p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p></div>{action}</div>;
 }
 
 export function BottomSheet({ open, onOpenChange, title, children, snap = .78 }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; children: React.ReactNode; snap?: number }) {
-  const y = useMotionValue(1000); const startY = React.useRef(0);
-  React.useEffect(() => { if (open) animate(y, 0, { type: "spring", stiffness: 360, damping: 34 }); else animate(y, 1000, { duration: .2 }); }, [open, y]);
-  React.useEffect(() => { if (!open) return; const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onOpenChange(false); }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, [open, onOpenChange]);
-  if (!open) return null;
-  return <div className="fixed inset-0 z-[80] flex items-end justify-center" role="presentation"><button className="absolute inset-0 bg-black/65" aria-label="Tutup panel" onClick={() => onOpenChange(false)}/><motion.section role="dialog" aria-modal="true" aria-label={title} style={{ y, maxHeight: `${Math.round(snap * 100)}dvh` }} drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: .35 }} onDragStart={() => { startY.current = y.get(); }} onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 650) onOpenChange(false); else animate(y, 0, { type: "spring", stiffness: 400, damping: 35 }); }} className="modal-safe relative flex w-full max-w-2xl flex-col overflow-hidden rounded-t-[24px] border border-border bg-card shadow-[var(--studio-shadow-float)]"><div className="flex touch-none flex-col items-center px-4 pt-3" onClick={() => animate(y, 0, { type: "spring", stiffness: 400, damping: 35 })}><span className="mb-3 h-1.5 w-10 rounded-full bg-muted-foreground/50"/><div className="flex w-full items-center justify-between pb-3"><h2>{title}</h2><IconButton label="Tutup" onClick={() => onOpenChange(false)}><X className="size-4"/></IconButton></div></div><div className="min-h-0 overflow-y-auto px-4 pb-6">{children}</div></motion.section></div>;
+  const snapPoint = Math.max(.55, Math.min(.92, snap));
+  return <Drawer.Root open={open} onOpenChange={onOpenChange} snapPoints={[snapPoint, 1]} fadeFromIndex={0} shouldScaleBackground dismissible handleOnly={false}>
+    <Drawer.Portal>
+      <Drawer.Overlay className="fixed inset-0 z-[80] bg-black/65 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:fade-in" />
+      <Drawer.Content className="modal-safe fixed inset-x-0 bottom-0 z-[81] mx-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-t-[24px] border border-border bg-card shadow-[var(--studio-shadow-float)] outline-none" style={{ maxHeight: `${Math.round(snapPoint * 100)}dvh` }}>
+        <div className="flex shrink-0 flex-col items-center px-4 pt-3">
+          <Drawer.Handle className="mb-3 h-1.5 w-10 rounded-full bg-muted-foreground/50" />
+          <Drawer.Title className="w-full pb-3 text-lg font-semibold">{title}</Drawer.Title>
+          <Drawer.Description className="sr-only">Panel editor. Geser ke bawah untuk menutup.</Drawer.Description>
+        </div>
+        <div className="min-h-0 overflow-y-auto px-4 pb-6">{children}</div>
+      </Drawer.Content>
+    </Drawer.Portal>
+  </Drawer.Root>;
 }
 
 export function AiFillButton({ onClick, label = "Isi dengan AI" }: { onClick?: () => void; label?: string }) {

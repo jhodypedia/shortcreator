@@ -53,7 +53,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 grid max-h-[88dvh] w-full gap-3 overflow-y-auto rounded-t-lg border border-b-0 border-border bg-popover p-4 pb-[max(env(safe-area-inset-bottom),1rem)] text-[13px] text-popover-foreground shadow-[var(--shadow)] duration-200 outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 sm:inset-x-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[85dvh] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border-b sm:pb-4",
+          "fixed inset-x-0 bottom-0 z-50 grid max-h-[88dvh] w-full gap-4 overflow-y-auto rounded-t-[22px] border border-b-0 border-border bg-[var(--studio-surface)] p-4 pb-[max(env(safe-area-inset-bottom),1rem)] text-sm text-popover-foreground shadow-[var(--studio-shadow-float)] duration-[var(--studio-motion-normal)] outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 sm:inset-x-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[85dvh] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[20px] sm:border-b sm:pb-4",
           className
         )}
         {...props}
