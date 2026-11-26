@@ -51,14 +51,20 @@ export default async function DashboardPage() {
   ]);
 
   const allEpisodes = seriesList.flatMap((s) => s.episodes);
-  const doneEpisodes = allEpisodes.filter((e) => e.status === "done");
-  const activeQueue = queueItems.filter((q) => q.status === "rendering" || q.status === "queued");
+  const statusOrder = ["draft", "script", "timing", "ready", "rendering", "review", "done"] as const;
+  const episodeCounts = Object.fromEntries(statusOrder.map((status) => [status, allEpisodes.filter((episode) => episode.status === status).length]));
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const [renderToday, aiUsage] = await Promise.all([
+    db.queueItem.count({ where: { updatedAt: { gte: today }, status: "done" } }),
+    db.aiRun.aggregate({ where: { createdAt: { gte: today } }, _sum: { inputTokens: true, outputTokens: true }, _count: { _all: true } }),
+  ]);
   const metrics = [
     { label: "Serial", value: seriesList.length, tone: "emerald" as const, hint: "aktif" },
-    { label: "Episode", value: allEpisodes.length, tone: "blue" as const, hint: "total" },
-    { label: "Selesai", value: doneEpisodes.length, tone: "emerald" as const, hint: "final" },
-    { label: "Antrean", value: activeQueue.length, tone: "amber" as const, hint: "render" },
+    { label: "Episode", value: allEpisodes.length, tone: "blue" as const, hint: `${episodeCounts.done} selesai` },
+    { label: "Render hari ini", value: renderToday, tone: "amber" as const, hint: "selesai" },
+    { label: "Token AI", value: (aiUsage._sum.inputTokens ?? 0) + (aiUsage._sum.outputTokens ?? 0), tone: "emerald" as const, hint: `${aiUsage._count._all} proses hari ini` },
   ];
+  const pipelineLabels: Record<(typeof statusOrder)[number], string> = { draft: "Draf", script: "Naskah", timing: "Timing", ready: "Siap", rendering: "Render", review: "Tinjau", done: "Selesai" };
   const seriesCounts = seriesList.map((s) => s.episodes.length);
 
   return (
@@ -120,6 +126,11 @@ export default async function DashboardPage() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      <section className="studio-card p-4 sm:p-5" aria-label="Pipeline episode">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><p className="panel-title">Pipeline produksi</p><h2 className="mt-1">Status episode</h2></div><span className="text-xs text-muted-foreground">{allEpisodes.length} episode total</span></div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">{statusOrder.map((status, index) => <div key={status} className="relative min-w-0 rounded-xl border border-border bg-background/60 p-3"><div className="flex items-center justify-between gap-1"><span className="truncate text-xs text-muted-foreground">{pipelineLabels[status]}</span><span className="mono text-sm font-semibold">{episodeCounts[status]}</span></div><div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><span className={`block h-full rounded-full ${status === "done" ? "bg-primary" : status === "rendering" ? "bg-amber-400" : "bg-secondary"}`} style={{ width: `${allEpisodes.length ? episodeCounts[status] / allEpisodes.length * 100 : 0}%` }} /></div>{index < statusOrder.length - 1 && <span className="absolute -right-2 top-1/2 z-10 hidden size-4 -translate-y-1/2 rounded-full border border-border bg-card xl:grid xl:place-items-center">›</span>}</div>)}</div>
       </section>
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
