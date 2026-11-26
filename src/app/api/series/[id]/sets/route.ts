@@ -3,7 +3,6 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { SetSchema } from "@/lib/schemas";
 import { validateAndBumpBible } from "@/lib/bible";
-import { writeGeneratedSetComponent } from "@/remotion/scenes/scene-generator";
 
 const SaveSetsBodySchema = z.object({
   sets: z.array(SetSchema).min(1, "Minimal 1 set harus ada"),
@@ -42,14 +41,6 @@ export async function POST(
       return NextResponse.json({ error: res.error }, { status: 400 });
     }
 
-    const generatedFiles: string[] = [];
-    for (const s of parsed.data.sets) {
-      if (!parsed.data.activeSetId || s.id === parsed.data.activeSetId) {
-        const rel = await writeGeneratedSetComponent(s);
-        generatedFiles.push(rel);
-      }
-    }
-
     const updated = await db.series.update({
       where: { id },
       data: {
@@ -58,10 +49,7 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({
-      series: updated,
-      generatedFiles,
-    });
+    return NextResponse.json({ series: updated });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Gagal menyimpan set" },

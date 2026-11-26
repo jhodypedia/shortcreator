@@ -80,6 +80,34 @@ model AppSetting {
   value String
 }
 
+model AiRun {
+  id           String   @id @default(cuid())
+  role         String
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  durationMs   Int      @default(0)
+  status       String   @default("running")
+  error        String?
+  input        Json
+  output       Json?
+  createdAt    DateTime @default(now())
+
+  @@index([role, createdAt])
+}
+
+model AiVersion {
+  id        String   @id @default(cuid())
+  seriesId  String
+  entity    String
+  entityId  String
+  snapshot  Json
+  note      String
+  createdAt DateTime @default(now())
+
+  @@index([seriesId, entity, entityId, createdAt])
+}
+
 model QueueControl {
   id         String   @id @default("default")
   isPaused   Boolean  @default(false)
@@ -105,6 +133,8 @@ model PromptPreset {
   payload   Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([kind, target, updatedAt])
 }
 
 model DownloadJob {

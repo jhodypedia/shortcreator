@@ -29,7 +29,7 @@ describe("bible & shot validation", () => {
       tone: "lucu",
       visualStyle: "voxel-3d",
     });
-    bible.characters[0].voiceId = "";
+    bible.characters.push({ id: "character-test", name: "Karakter uji", role: "Uji", traits: ["uji"], colorPrimary: "#112233", colorSkin: "#F5C6A5", colorPants: "#334155", colorHair: "#1E293B", proportions: { headScale: 1, bodyHeight: 1, limbLength: 1 }, voiceId: "", voicePitch: 0, voiceSpeed: 1, expression: "netral", accessory: "none", catchphrase: "", forbidden: "" });
     const res = validateAndBumpBible({
       nextBible: bible,
       currentVersion: 1,

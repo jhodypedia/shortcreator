@@ -1,6 +1,8 @@
 import { db } from "../db";
 import { getAppSettings } from "../settings";
-import { ROLE_DEFINITIONS } from "./roles";
+import { getRoleDefinition } from "./roles";
+import { GENERATION_DEFAULTS } from "../generation-config";
+import { ACTIONS, ACCESSORIES, SET_OBJECT_TYPES } from "../technical-registry";
 import type { AiRole } from "./types";
 
 export type AiProgressEvent = { stage: string; percent: number; text: string };
@@ -86,7 +88,7 @@ async function requestModel(model: string, temperature: number, maxTokens: numbe
 }
 
 export async function runAiRole<R extends AiRole>(role: R, input: unknown, options: RunOptions = {}) {
-  const def = ROLE_DEFINITIONS[role];
+  const def = getRoleDefinition(role);
   const { publicSettings } = await getAppSettings();
   const cfg = publicSettings.ai.roles[role];
   const start = performance.now();
@@ -95,12 +97,21 @@ export async function runAiRole<R extends AiRole>(role: R, input: unknown, optio
   let lastError = "No valid output"; let inputTokens = 0; let outputTokens = 0;
   try {
     if (!validInput.success) throw new Error(`Invalid ${role} input: ${validInput.error.message}`);
+    const presets = await db.promptPreset.findMany({ where: { kind: "system", target: role }, orderBy: { updatedAt: "desc" } });
+    const retrySetting = await db.appSetting.findUnique({ where: { key: "generation.aiRetryCount" } });
+    const preset = presets.find((item) => (item.payload as { active?: boolean } | null)?.active !== false);
+    const presetPayload = preset?.payload;
+    const systemPrompt = typeof presetPayload === "string" ? presetPayload : String((presetPayload as { prompt?: unknown } | null)?.prompt ?? "");
+    const roleSystemPrompt = `${systemPrompt}\n\nTechnical registry values:\nActions=${ACTIONS.join(", ")}\nAccessories=${ACCESSORIES.join(", ")}\nSetObjectTypes=${SET_OBJECT_TYPES.join(", ")}`;
+    if (!systemPrompt) throw new Error(`Prompt aktif untuk role ${role} belum tersedia di PromptPreset.`);
     for (const model of [...new Set([cfg.model, cfg.fallbackModel])]) {
       let validationError = "";
-      for (let retry = 0; retry <= 2; retry++) {
+      const retries = Number(publicSettings.generation.aiRetryCount ?? retrySetting?.value ?? GENERATION_DEFAULTS.aiRetryCount);
+      const timeoutMs = Number(publicSettings.generation.aiTimeoutMs ?? cfg.timeoutMs);
+      for (let retry = 0; retry <= retries; retry++) {
           options.onProgress?.({ stage: role, percent: 10 + retry * 25, text: retry ? `Mencoba ulang (${retry}/2)…` : `Menghubungi ${model}…` });
         try {
-          const response = await requestModel(model, cfg.temperature, cfg.maxTokens, cfg.timeoutMs, def.system, JSON.stringify({ input: validInput.data, previousValidationError: validationError || undefined, format: "JSON only" }));
+          const response = await requestModel(model, cfg.temperature, cfg.maxTokens, timeoutMs, roleSystemPrompt, JSON.stringify({ input: validInput.data, previousValidationError: validationError || undefined, format: "JSON only" }));
           inputTokens += response.inputTokens; outputTokens += response.outputTokens;
           let raw: unknown;
           try { raw = JSON.parse(response.text); } catch { throw new Error("Output AI bukan JSON valid."); }

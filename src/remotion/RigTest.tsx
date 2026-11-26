@@ -43,7 +43,7 @@ export const RigTest: React.FC = () => {
           <planeGeometry args={[12, 12]} /><meshStandardMaterial color="#334155" />
         </mesh>
         <VoxelCharacter
-          character={{ id: "rigtest-raka", name: "Raka", colorPrimary: "#2563EB", colorSkin: "#F5C6A5", colorHair: "#111827", accessory: "peci" }}
+          character={{ id: "rigtest-character", name: "Rig test", colorPrimary: "#2563EB", colorSkin: "#F5C6A5", colorHair: "#111827", accessory: "topi" }}
           frame={localFrame} fps={fps} position={pos} action={segment.action}
           previousAction={previous} transitionStartFrame={0}
           speaking={Boolean(segment.speaking)} emotion={segment.emotion}
@@ -55,7 +55,7 @@ export const RigTest: React.FC = () => {
       <div style={{ position: "absolute", top: 142, width: "100%", textAlign: "center", color: "#94a3b8", fontSize: 27, fontFamily: "sans-serif" }}>
         ACTION {segmentIndex + 1}/{demos.length} · {frame}/300
       </div>
-      {segment.speaking && <div style={{ position: "absolute", bottom: 170, width: "100%", textAlign: "center", color: "#FDE68A", fontSize: 42, fontFamily: "sans-serif" }}>Halo! Aku Raka.</div>}
+      {segment.speaking && <div style={{ position: "absolute", bottom: 170, width: "100%", textAlign: "center", color: "#FDE68A", fontSize: 42, fontFamily: "sans-serif" }}>Speech preview</div>}
     </AbsoluteFill>
   );
 };

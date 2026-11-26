@@ -142,13 +142,9 @@ export function EpisodeScriptClient({
         return;
       }
       setIdeas(json.ideas ?? []);
-      toast.success(
-        json.source === "ai"
-          ? "3 ide hook dibuat oleh AI!"
-          : "3 ide hook dibuat dari template lokal (AI belum dikonfigurasi)."
-      );
+      toast.success("Ide hook berhasil dibuat oleh AI.");
     } catch {
-      toast.error("Gagal menghubungi server");
+      toast.error("Gagal membuat ide dengan AI. Coba lagi.");
     } finally {
       setLoadingIdeas(false);
     }
@@ -185,8 +181,8 @@ export function EpisodeScriptClient({
       setCliffhanger(selectedIdea.cliffhanger);
       setLines(json.lines);
       toast.success("Naskah lengkap berhasil disusun!");
-    } catch {
-      toast.error("Gagal menghubungi server");
+      } catch {
+        toast.error("Gagal membuat naskah dengan AI. Coba lagi.");
     } finally {
       setWritingScript(false);
     }
@@ -372,13 +368,16 @@ export function EpisodeScriptClient({
               setLines((prev) => [
                 ...prev,
                 {
-                  id: `line-${Date.now()}`,
+                  id: `line-${lines.length + 1}`,
                   beat: "konflik",
-                  speaker: bible.characters[0]?.name ?? "Raka",
+                  speaker: bible.characters[0]?.name ?? "",
                   text: "Kalimat dialog baru...",
                   emotion: "netral",
                   durationSec: 1.6,
                   setId: bible.sets[0]?.id,
+                  action: "talk",
+                  moveTo: undefined,
+                  prop: undefined,
                 },
               ])
             }
@@ -421,7 +420,7 @@ export function EpisodeScriptClient({
                     disabled={isLocked}
                     onValueChange={(v) => {
                       const next = [...lines];
-                      next[idx] = { ...line, speaker: v || bible.characters[0]?.name || "Raka" };
+                      next[idx] = { ...line, speaker: v || bible.characters[0]?.name || "" };
                       setLines(next);
                     }}
                   >
@@ -477,6 +476,20 @@ export function EpisodeScriptClient({
                       {ActionTypeSchema.options.map((action) => <SelectItem key={action} value={action}>{action}</SelectItem>)}
                     </SelectContent>
                   </Select>
+
+                  <Select value={line.moveTo ?? "none"} disabled={isLocked} onValueChange={(v) => {
+                    const next = [...lines]; next[idx] = { ...line, moveTo: v === "none" ? undefined : v as ScriptLine["moveTo"] }; setLines(next);
+                  }}>
+                    <SelectTrigger className="w-full" aria-label={`Pindah ke baris ${idx + 1}`}><SelectValue placeholder="Posisi" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Tetap di tempat</SelectItem>
+                      {Object.keys(bible.sets.find((set) => set.id === line.setId)?.stagePoints ?? {}).map((point) => <SelectItem key={point} value={point}>{point}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Input aria-label={`Prop baris ${idx + 1}`} disabled={isLocked} placeholder="Prop (opsional)" value={line.prop ?? ""} onChange={(e) => {
+                    const next = [...lines]; next[idx] = { ...line, prop: e.target.value || undefined }; setLines(next);
+                  }} />
 
                   <Select
                     value={line.setId || bible.sets[0]?.id || ""}

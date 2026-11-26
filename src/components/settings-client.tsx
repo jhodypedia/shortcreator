@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -46,6 +46,8 @@ export function SettingsClient({
   const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
   const [roleSettings, setRoleSettings] = useState(initialSettings.ai.roles);
   const [maxCost, setMaxCost] = useState(initialSettings.ai.maxCostPerEpisodeUsd);
+  const [promptSettings, setPromptSettings] = useState(initialSettings.prompts);
+  const [generationSettings, setGenerationSettings] = useState(initialSettings.generation);
 
   // TTS state
   const [ttsProvider, setTtsProvider] = useState<TtsProviderType>(initialSettings.tts.provider);
@@ -65,6 +67,9 @@ export function SettingsClient({
   const [height, setHeight] = useState(initialSettings.render.height);
   const [maxRetries, setMaxRetries] = useState(initialSettings.render.maxRetries);
   const [ffmpegPath, setFfmpegPath] = useState(initialSettings.render.ffmpegPath);
+  const [availableVoices, setAvailableVoices] = useState<Array<{ id: string; label: string }>>([]);
+
+  useEffect(() => { void fetch("/api/settings").then((res) => res.json()).then((json) => setAvailableVoices(json.voices ?? [])).catch(() => setAvailableVoices([])); }, [ttsProvider]);
 
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -96,11 +101,13 @@ export function SettingsClient({
             model: aiModel,
             roles: roleSettings,
             maxCostPerEpisodeUsd: maxCost,
+            prompts: promptSettings.map((prompt) => ({ ...prompt, version: prompt.version + 1 })),
             ...(aiApiKey.trim() ? { apiKey: aiApiKey.trim() } : {}),
             ...(clearAiKey ? { clearApiKey: true } : {}),
           },
           tts: {
             provider: ttsProvider,
+            model: initialSettings.tts.provider === ttsProvider ? undefined : initialSettings.ai.ttsModel,
             defaultVoiceId,
             defaultSpeed,
             defaultPitch,
@@ -115,6 +122,7 @@ export function SettingsClient({
             maxRetries,
             ffmpegPath,
           },
+          generation: generationSettings,
         }),
       });
       const json = await res.json();
@@ -346,7 +354,7 @@ export function SettingsClient({
           {Object.entries(roleSettings).map(([role, config]) => (
             <div key={role} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3">
               <Label className="self-center">{role}</Label>
-              <Input aria-label={`${role} model`} value={config.model} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], model: e.target.value } }))} />
+                <Input aria-label={`${role} model`} value={config.model} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], model: e.target.value } }))} />
               <div className="flex gap-2">
                 <Input aria-label={`${role} fallback`} value={config.fallbackModel} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], fallbackModel: e.target.value } }))} />
                 <Input aria-label={`${role} temperature`} type="number" min="0" max="2" step="0.05" className="w-24" value={config.temperature} onChange={(e) => setRoleSettings((prev) => ({ ...prev, [role]: { ...prev[role as keyof typeof prev], temperature: Number(e.target.value) } }))} />
@@ -360,6 +368,14 @@ export function SettingsClient({
             <div className="space-y-1"><Label htmlFor="ai-max-cost">Batas biaya per episode (USD)</Label><Input id="ai-max-cost" type="number" min="0" step="0.1" value={maxCost} onChange={(e) => setMaxCost(Number(e.target.value))} /></div>
             <Button variant="outline" onClick={async () => { const res = await fetch("/api/settings", { method: "DELETE" }); if (res.ok) { toast.success("Konfigurasi AI kembali ke default"); router.refresh(); } }}>Reset ke default</Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">AI — Prompt dan Aturan Generasi</CardTitle><CardDescription>Prompt tersimpan berversi di database. Perubahan membuat versi prompt baru.</CardDescription></CardHeader>
+        <CardContent className="space-y-4">
+          {promptSettings.map((item, index) => <div className="space-y-1" key={item.role}><Label>System prompt · {item.role} · v{item.version}</Label><textarea className="min-h-24 w-full rounded-md border bg-background p-2 text-sm" value={item.prompt} onChange={(event) => setPromptSettings((prev) => prev.map((entry, idx) => idx === index ? { ...entry, prompt: event.target.value } : entry))} /></div>)}
+          <div className="grid gap-2 sm:grid-cols-3">{Object.entries(generationSettings).map(([key, value]) => <div key={key}><Label>{key}</Label><Input type="number" value={value} onChange={(event) => setGenerationSettings((prev) => ({ ...prev, [key]: Number(event.target.value) }))} /></div>)}</div>
         </CardContent>
       </Card>
 
@@ -424,11 +440,10 @@ export function SettingsClient({
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-3 space-y-1 sm:col-span-1">
                 <Label htmlFor="tts-voice" className="text-xs">Voice Default</Label>
-                <Input
-                  id="tts-voice"
-                  value={defaultVoiceId}
-                  onChange={(e) => setDefaultVoiceId(e.target.value)}
-                />
+                  <Select value={defaultVoiceId} onValueChange={(value) => setDefaultVoiceId(value ?? "")}>
+                    <SelectTrigger id="tts-voice"><SelectValue /></SelectTrigger>
+                    <SelectContent>{availableVoices.map((voice) => <SelectItem key={voice.id} value={voice.id}>{voice.label}</SelectItem>)}</SelectContent>
+                  </Select>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="tts-speed" className="text-xs">Speed</Label>
@@ -472,7 +487,7 @@ export function SettingsClient({
                   id="render-fps"
                   type="number"
                   value={fps}
-                  onChange={(e) => setFps(Number(e.target.value) || 30)}
+                  onChange={(e) => setFps(Number(e.target.value))}
                 />
               </div>
               <div className="space-y-1">
@@ -481,7 +496,7 @@ export function SettingsClient({
                   id="render-width"
                   type="number"
                   value={width}
-                  onChange={(e) => setWidth(Number(e.target.value) || 1080)}
+                  onChange={(e) => setWidth(Number(e.target.value))}
                 />
               </div>
               <div className="space-y-1">
@@ -490,7 +505,7 @@ export function SettingsClient({
                   id="render-height"
                   type="number"
                   value={height}
-                  onChange={(e) => setHeight(Number(e.target.value) || 1920)}
+                  onChange={(e) => setHeight(Number(e.target.value))}
                 />
               </div>
               <div className="space-y-1">
@@ -499,7 +514,7 @@ export function SettingsClient({
                   id="render-retries"
                   type="number"
                   value={maxRetries}
-                  onChange={(e) => setMaxRetries(Number(e.target.value) || 2)}
+                  onChange={(e) => setMaxRetries(Number(e.target.value))}
                 />
               </div>
             </div>

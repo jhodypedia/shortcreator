@@ -50,15 +50,18 @@ export async function POST(req: NextRequest) {
     for (const item of parsed.data.outlines) {
       const cliffFrom = item.cliffhangerFrom || runningCliffhanger || null;
 
+      const primaryCharacter = bible.characters[0];
+      const primarySet = bible.sets[0];
+      if (!primaryCharacter || !primarySet) return NextResponse.json({ error: "Bible harus memiliki karakter dan set sebelum membuat episode." }, { status: 422 });
       let lines: ScriptLine[] = [
         {
           id: "line-1",
           beat: "hook",
-          speaker: bible.characters[0]?.name ?? "Raka",
+          speaker: primaryCharacter.name,
           text: item.hook,
           emotion: "kaget",
           durationSec: 2.5,
-          setId: bible.sets[0]?.id ?? "set-1",
+          setId: primarySet.id,
         },
       ];
 
@@ -76,7 +79,7 @@ export async function POST(req: NextRequest) {
         });
         lines = res.lines.map((l) => ({
           ...l,
-          setId: l.setId ?? bible.sets[0]?.id ?? "set-1",
+          setId: l.setId ?? primarySet.id,
         }));
       }
 
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
           twist: item.twist,
           cliffhanger: item.cliffhanger,
           cliffhangerFrom: cliffFrom,
-          script: { lines, setId: bible.sets[0]?.id ?? "set-1", continuityConfirmed: true },
+          script: { lines, setId: primarySet.id, continuityConfirmed: true },
           shots: { shots },
           durationSec,
           status: parsed.data.generateScripts ? "script" : "draft",
@@ -111,7 +114,7 @@ export async function POST(req: NextRequest) {
           twist: item.twist,
           cliffhanger: item.cliffhanger,
           cliffhangerFrom: cliffFrom,
-          script: { lines, setId: bible.sets[0]?.id ?? "set-1", continuityConfirmed: true },
+          script: { lines, setId: primarySet.id, continuityConfirmed: true },
           shots: { shots },
           durationSec,
           status: parsed.data.generateScripts ? "script" : "draft",

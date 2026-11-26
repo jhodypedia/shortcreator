@@ -20,13 +20,6 @@ import { CharacterPreview3D } from "./CharacterPreview3D";
 import { SeriesHeaderNav } from "@/components/series-nav";
 import { BottomSheet } from "@/components/ui/studio-primitives";
 
-const VOICES = [
-  { id: "id-ID-ArdiNeural", label: "Ardi (id-ID Pria)" },
-  { id: "id-ID-GadisNeural", label: "Gadis (id-ID Wanita)" },
-  { id: "en-US-GuyNeural", label: "Guy (en-US Pria)" },
-  { id: "en-US-JennyNeural", label: "Jenny (en-US Wanita)" },
-];
-
 export function CharacterBuilderClient({
   series,
   initialBible,
@@ -46,6 +39,9 @@ export function CharacterBuilderClient({
   const [aiBusy, setAiBusy] = useState(false);
   const [undoStack, setUndoStack] = useState<CharacterConfig[][]>([]);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
+  const [voices, setVoices] = useState<Array<{ id: string; label: string }>>([]);
+
+  React.useEffect(() => { void fetch("/api/settings").then((response) => response.json()).then((data) => setVoices(data.voices ?? [])).catch(() => setVoices([])); }, []);
 
   const activeChar = characters[selectedIdx] ?? characters[0];
 
@@ -64,7 +60,7 @@ export function CharacterBuilderClient({
         colorPants: typeof source.colorPants === "string" ? source.colorPants : "#334155",
         colorHair: typeof source.colorHair === "string" ? source.colorHair : "#1E293B",
         proportions: source.proportions ?? { headScale: 1, bodyHeight: 1, limbLength: 1 },
-        voiceId: typeof source.voiceId === "string" ? source.voiceId : "id-ID-ArdiNeural",
+        voiceId: typeof source.voiceId === "string" ? source.voiceId : "",
         voicePitch: typeof source.voicePitch === "number" ? source.voicePitch : 0,
         voiceSpeed: typeof source.voiceSpeed === "number" ? source.voiceSpeed : 1,
         expression: source.expression ?? "netral",
@@ -170,7 +166,7 @@ export function CharacterBuilderClient({
                 colorPants: "#1E293B",
                 colorHair: "#27272A",
                 proportions: { headScale: 1, bodyHeight: 1, limbLength: 1 },
-                voiceId: "id-ID-ArdiNeural",
+                voiceId: voices[0]?.id ?? "",
                 voicePitch: 0,
                 voiceSpeed: 1,
                 expression: "netral",
@@ -343,13 +339,13 @@ export function CharacterBuilderClient({
                   <Label>Suara Default (Voice ID)</Label>
                   <Select
                     value={activeChar.voiceId}
-                    onValueChange={(v) => updateChar({ voiceId: v || "id-ID-ArdiNeural" })}
+                    onValueChange={(v) => updateChar({ voiceId: v || "" })}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {VOICES.map((v) => (
+                      {voices.map((v) => (
                         <SelectItem key={v.id} value={v.id}>
                           {v.label}
                         </SelectItem>

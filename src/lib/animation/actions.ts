@@ -22,11 +22,13 @@ const zero = (): JointPose => ({
 });
 
 const smooth = (v: number) => { const x = Math.max(0, Math.min(1, v)); return x * x * (3 - 2 * x); };
+const spring = (v: number) => { const x = Math.max(0, Math.min(1, v)); return 1 + Math.exp(-7 * x) * Math.sin((x - 0.15) * Math.PI * 2.2) * (1 - x) * 0.08; };
 
 export function actionPose(action: CharacterAction, frame: number, fps: number): JointPose {
   const pose = zero();
   const t = Math.max(0, frame) / Math.max(1, fps);
   const phase = t * Math.PI * 2 * 2;
+  const anticipation = spring(Math.min(1, Math.max(0, frame / 5))) - 1;
   if (action === "idle") {
     pose.torso[0] = Math.sin(t * 2.4) * 0.018;
     pose.torso[1] = Math.sin(t * 1.2) * 0.012;
@@ -55,9 +57,9 @@ export function actionPose(action: CharacterAction, frame: number, fps: number):
   } else if (action === "shake_head") {
     pose.head[1] = Math.sin(t * 9) * 0.38;
   } else if (action === "surprised") {
-    const jump = Math.max(0, Math.sin(t * Math.PI * 2 * 1.2));
-    pose.bounce = jump * 0.24;
-    pose.squash = Math.max(0, -Math.sin(t * Math.PI * 2 * 1.2)) * 0.09;
+    const jump = frame < Math.round(fps * 0.55) ? Math.max(0, Math.sin((frame / Math.max(1, fps * 0.55)) * Math.PI)) : 0;
+    pose.bounce = jump * 0.24 - anticipation * 0.07;
+    pose.squash = anticipation * 0.09;
     pose.armL[0] = -2.2; pose.armR[0] = -2.2;
     pose.legL[0] = 0.16; pose.legR[0] = -0.16;
     pose.torso[0] = -0.12;
@@ -65,13 +67,16 @@ export function actionPose(action: CharacterAction, frame: number, fps: number):
     pose.head[0] = Math.sin(t * 12) * 0.22; pose.torso[0] = Math.sin(t * 12) * 0.1;
     pose.armL[0] = -0.45; pose.armR[0] = -0.45;
   } else if (action === "slam_table") {
-    const impact = Math.max(0, Math.sin(t * Math.PI * 2 * 1.5));
-    pose.torso[0] = 0.48 - impact * 0.15; pose.armL[0] = -1.1; pose.armR[0] = -1.1;
-    pose.squash = impact * 0.11;
+    const windup = 1 - smooth(Math.min(1, frame / 7));
+    const impact = Math.max(0, 1 - Math.abs((frame - Math.round(fps * 0.22)) / Math.max(1, fps * 0.16)));
+    pose.torso[0] = -0.18 * windup + 0.48 * impact; pose.armL[0] = -0.3 - 0.8 * spring(Math.min(1, frame / Math.max(1, fps * 0.2))); pose.armR[0] = pose.armL[0];
+    pose.squash = windup * 0.06 + impact * 0.11;
   } else if (action === "drop_item") {
-    pose.torso[0] = 0.22; pose.head[0] = 0.26; pose.armL[0] = -0.4; pose.armR[0] = -0.5;
+    const reach = smooth(Math.min(1, Math.max(0, frame / Math.max(1, fps * 0.3))));
+    pose.torso[0] = 0.22 * reach; pose.head[0] = 0.26 * reach; pose.armL[0] = -0.4 * reach; pose.armR[0] = -0.5 * reach;
   } else if (action === "pick_up") {
-    pose.torso[0] = 0.62; pose.head[0] = 0.35; pose.armR[0] = -0.8;
+    const reach = smooth(Math.min(1, Math.max(0, frame / Math.max(1, fps * 0.28))));
+    pose.torso[0] = 0.62 * reach; pose.head[0] = 0.35 * reach; pose.armR[0] = -0.8 * reach;
   } else if (action === "hand_over") {
     pose.armR[0] = -1.15; pose.armR[2] = -0.32; pose.torso[0] = -0.06;
   } else if (action === "think") {

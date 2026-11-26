@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, logActivity } from "@/lib/db";
-import { createDefaultBible } from "@/lib/bible";
 import { CreateSeriesInputSchema, SeriesBibleSchema } from "@/lib/schemas";
 import { runAiRoleJson } from "@/lib/ai/runner";
 
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
       let generated: Awaited<ReturnType<typeof runAiRoleJson>> | undefined;
       let generationError: string | undefined;
       try {
-        generated = await runAiRoleJson("bibleWriter", { idea: `${parsed.data.name}: ${parsed.data.theme}. Audiens ${parsed.data.audience}, tone ${parsed.data.tone}, gaya ${parsed.data.visualStyle}. Buat Bible awal yang valid dengan karakter dan set.` });
+        generated = await runAiRoleJson("bibleWriter", { idea: JSON.stringify({ name: parsed.data.name, theme: parsed.data.theme, audience: parsed.data.audience, tone: parsed.data.tone, visualStyle: parsed.data.visualStyle }) });
       } catch (error) {
         generationError = error instanceof Error ? error.message : String(error);
       }
@@ -51,12 +50,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `AI belum dapat membuat Bible: ${generationError}. Coba lagi atau gunakan model lain di Pengaturan → AI.` }, { status: 503 });
       }
       if (!generated) return NextResponse.json({ error: "AI belum menghasilkan Bible. Silakan coba lagi." }, { status: 503 });
-      const defaults = createDefaultBible({ name: parsed.data.name, theme: parsed.data.theme, tone: parsed.data.tone, visualStyle: parsed.data.visualStyle });
-      let candidate: unknown = { ...defaults, ...generated.data };
+      let candidate: unknown = generated.data;
       let validation = SeriesBibleSchema.safeParse(candidate);
       if (!validation.success) {
-        const repaired = await runAiRoleJson("bibleWriter", { idea: `Perbaiki Bible berikut agar valid. Error Zod: ${validation.error.message}\nBible: ${JSON.stringify(candidate)}` });
-        candidate = { ...defaults, ...repaired.data };
+        const repaired = await runAiRoleJson("bibleWriter", { idea: JSON.stringify({ repair: candidate, validationErrors: validation.error.issues }) });
+        candidate = repaired.data;
         validation = SeriesBibleSchema.safeParse(candidate);
       }
       if (!validation.success) {

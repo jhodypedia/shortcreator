@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import os from "node:os";
 import { db } from "./db";
 import { AiRoleSchema, ROLE_DEFAULTS, type AiRole, type AiRoleSettings } from "./ai/types";
+import { GENERATION_DEFAULTS } from "./generation-config";
 
 export type AiProviderType = "9router" | "openai" | "anthropic" | "local";
 export type TtsProviderType = "edge-tts" | "openai" | "elevenlabs" | "local";
@@ -11,6 +12,7 @@ export interface AppSettingsData {
     provider: AiProviderType;
     baseUrl: string;
     model: string;
+    ttsModel?: string;
     hasApiKey: boolean;
     maskedApiKey: string;
     roles: Record<AiRole, AiRoleSettings>;
@@ -18,6 +20,7 @@ export interface AppSettingsData {
   };
   tts: {
     provider: TtsProviderType;
+    model: string;
     hasApiKey: boolean;
     maskedApiKey: string;
     defaultVoiceId: string;
@@ -32,7 +35,11 @@ export interface AppSettingsData {
     maxRetries: number;
     ffmpegPath: string;
   };
+  generation: { [K in keyof typeof GENERATION_DEFAULTS]: number };
+  prompts: Array<{ role: AiRole; prompt: string; version: number }>;
 }
+
+export const GENERATION_CONFIG_DEFAULTS = GENERATION_DEFAULTS;
 
 export interface ResolvedSecrets {
   aiApiKey: string;
@@ -88,28 +95,17 @@ export async function getAppSettings(): Promise<{
 }> {
   const rows = await db.appSetting.findMany();
   const map = new Map(rows.map((r) => [r.key, r.value]));
+  const promptRows = await db.promptPreset.findMany({ where: { kind: "system" }, orderBy: { updatedAt: "desc" } });
 
   const aiProvider = (map.get("ai.provider") ||
     process.env.AI_PROVIDER ||
     "9router") as AiProviderType;
 
-  const defaultBaseUrl =
-    aiProvider === "9router"
-      ? process.env.AI_BASE_URL || "http://localhost:20128/v1"
-      : aiProvider === "anthropic"
-        ? "https://api.anthropic.com"
-        : "https://api.openai.com/v1";
+  const defaultBaseUrl = process.env.AI_BASE_URL || "";
 
   const aiBaseUrl =
     map.get("ai.baseUrl") || process.env.AI_BASE_URL || defaultBaseUrl;
-  const aiModel =
-    map.get("ai.model") ||
-    process.env.AI_MODEL ||
-    (aiProvider === "9router"
-      ? "ag/gemini-2.5-flash"
-      : aiProvider === "anthropic"
-        ? "claude-3-5-sonnet-latest"
-        : "gpt-4o-mini");
+  const aiModel = map.get("ai.model") || process.env.AI_MODEL || "";
 
   const aiRawKey = map.get("ai.apiKey")
     ? decryptSecret(map.get("ai.apiKey")!)
@@ -138,22 +134,17 @@ export async function getAppSettings(): Promise<{
     : process.env.TTS_API_KEY || "";
 
   const defaultVoiceId =
-    map.get("tts.defaultVoiceId") ||
-    process.env.TTS_DEFAULT_VOICE ||
-    "id-ID-ArdiNeural";
+    map.get("tts.defaultVoiceId") || process.env.TTS_DEFAULT_VOICE || "";
   const defaultSpeed = Number(map.get("tts.defaultSpeed") || "1.0") || 1.0;
   const defaultPitch = Number(map.get("tts.defaultPitch") || "0") || 0;
 
   const outputDir =
-    map.get("render.outputDir") ||
-    process.env.RENDER_OUTPUT_DIR ||
-    "storage/renders";
-  const fps = Number(map.get("render.fps") || process.env.RENDER_FPS || "30") || 30;
-  const width = Number(map.get("render.width") || "1080") || 1080;
-  const height = Number(map.get("render.height") || "1920") || 1920;
-  const maxRetries = Number(map.get("render.maxRetries") || "2") || 2;
-  const ffmpegPath =
-    map.get("render.ffmpegPath") || process.env.FFMPEG_PATH || "/usr/bin/ffmpeg";
+    map.get("render.outputDir") || process.env.RENDER_OUTPUT_DIR || "";
+  const fps = Number(map.get("render.fps") || process.env.RENDER_FPS || "0");
+  const width = Number(map.get("render.width") || process.env.RENDER_WIDTH || "0");
+  const height = Number(map.get("render.height") || process.env.RENDER_HEIGHT || "0");
+  const maxRetries = Number(map.get("render.maxRetries") || process.env.RENDER_MAX_RETRIES || GENERATION_DEFAULTS.renderMaxRetries);
+  const ffmpegPath = map.get("render.ffmpegPath") || process.env.FFMPEG_PATH || "ffmpeg";
 
   return {
     publicSettings: {
@@ -168,6 +159,7 @@ export async function getAppSettings(): Promise<{
       },
       tts: {
         provider: ttsProvider,
+        model: map.get("tts.model") || process.env.TTS_MODEL || "",
         hasApiKey: Boolean(ttsRawKey),
         maskedApiKey: maskSecret(ttsRawKey),
         defaultVoiceId,
@@ -182,6 +174,8 @@ export async function getAppSettings(): Promise<{
         maxRetries,
         ffmpegPath,
       },
+      generation: { ...GENERATION_DEFAULTS, scriptLinesMin: Number(map.get("generation.scriptLinesMin") ?? GENERATION_DEFAULTS.scriptLinesMin), scriptLinesMax: Number(map.get("generation.scriptLinesMax") ?? GENERATION_DEFAULTS.scriptLinesMax), wordsPerLineMax: Number(map.get("generation.wordsPerLineMax") ?? GENERATION_DEFAULTS.wordsPerLineMax), episodeDurationMinSeconds: Number(map.get("generation.episodeDurationMinSeconds") ?? GENERATION_DEFAULTS.episodeDurationMinSeconds), episodeDurationMaxSeconds: Number(map.get("generation.episodeDurationMaxSeconds") ?? GENERATION_DEFAULTS.episodeDurationMaxSeconds), bulkEpisodesMax: Number(map.get("generation.bulkEpisodesMax") ?? GENERATION_DEFAULTS.bulkEpisodesMax), aiRetryCount: Number(map.get("generation.aiRetryCount") ?? GENERATION_DEFAULTS.aiRetryCount), aiTimeoutMs: Number(map.get("generation.aiTimeoutMs") ?? GENERATION_DEFAULTS.aiTimeoutMs), renderMaxRetries: Number(map.get("generation.renderMaxRetries") ?? GENERATION_DEFAULTS.renderMaxRetries), criticThreshold: Number(map.get("generation.criticThreshold") ?? GENERATION_DEFAULTS.criticThreshold) },
+      prompts: promptRows.flatMap((row) => { const payload = row.payload as { prompt?: unknown; version?: unknown; active?: unknown } | string; const prompt = typeof payload === "string" ? payload : String(payload?.prompt ?? ""); return prompt && (typeof payload === "string" || payload.active !== false) ? [{ role: AiRoleSchema.parse(row.target), prompt, version: typeof payload === "string" ? 1 : Number(payload.version ?? 1) }] : []; }),
     },
     secrets: {
       aiApiKey: aiRawKey,

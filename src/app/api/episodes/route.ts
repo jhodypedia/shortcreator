@@ -48,8 +48,9 @@ export async function POST(req: NextRequest) {
     const maxEp = series.episodes[0]?.number ?? 0;
     const number = parsed.data.number ?? maxEp + 1;
 
-    const defaultSpeaker = bible.characters[0]?.name ?? "Raka";
-    const defaultSetId = bible.sets[0]?.id ?? "set-1";
+    const defaultSpeaker = bible.characters[0]?.name;
+    const defaultSetId = bible.sets[0]?.id;
+    if (!defaultSpeaker || !defaultSetId) return NextResponse.json({ error: "Bible harus memiliki karakter dan set sebelum membuat episode." }, { status: 422 });
 
     const script = parsed.data.script ?? {
       lines: [

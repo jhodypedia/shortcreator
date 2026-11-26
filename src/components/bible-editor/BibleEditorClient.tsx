@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { CharacterPreview3D } from "@/components/character-preview/CharacterPreview3D";
 import { SetPreview3D } from "@/components/set-preview/SetPreview3D";
 import { SeriesHeaderNav } from "@/components/series-nav";
+import { AiCommandBar } from "@/components/ai-command-bar";
 
 export function BibleEditorClient({
   series,
@@ -194,6 +195,8 @@ export function BibleEditorClient({
           </Button>
         </div>
       </div>
+
+      <AiCommandBar state={bible} onApply={(next) => { const checked = SeriesBibleSchema.safeParse(next); if (!checked.success) { toast.error(checked.error.issues[0]?.message || "Patch tidak valid"); return; } syncBible(checked.data); }} />
 
       <Tabs defaultValue="form" className="space-y-4">
         <TabsList>
@@ -407,7 +410,7 @@ export function BibleEditorClient({
                         colorPants: "#1E293B",
                         colorHair: "#27272A",
                         proportions: { headScale: 1, bodyHeight: 1, limbLength: 1 },
-                        voiceId: "id-ID-ArdiNeural",
+                        voiceId: "",
                         voicePitch: 0,
                         voiceSpeed: 1,
                         expression: "netral",

@@ -82,107 +82,15 @@ export function createDefaultBible(params: {
 
   return {
     premise: `Serial ${params.name} bertema ${params.theme} dengan gaya ${params.tone} dan karakter orisinal.`,
-    world: {
-      rules: [
-        "Semua karakter punya batas energi harian",
-        "Setiap aksi berdampak ke episode berikutnya",
-      ],
-      impossible: ["Karakter tidak bisa terbang tanpa alat dunia"],
-      taboo: ["Tidak ada kekerasan sadis atau ejekan kasar"],
-    },
-    characters: [
-      {
-        id: "char-1",
-        name: "Raka",
-        role: "Protagonis utama",
-        traits: ["penasaran", "ceroboh", "setia"],
-        colorPrimary: accentColor,
-        colorSkin: "#F5C6A5",
-        colorPants: "#1E293B",
-        colorHair: "#27272A",
-        proportions: { headScale: 1.05, bodyHeight: 1.0, limbLength: 1.0 },
-        voiceId: "id-ID-ArdiNeural",
-        voicePitch: 2,
-        voiceSpeed: 1.0,
-        expression: "netral",
-        accessory: "topi",
-        catchphrase: "Sebentar, ini aneh banget!",
-        forbidden: "Tidak pernah berbohong demi menjatuhkan teman",
-      },
-      {
-        id: "char-2",
-        name: "Sari",
-        role: "Partner strategis",
-        traits: ["cerdas", "tenang", "skeptis"],
-        colorPrimary: "#3B82F6",
-        colorSkin: "#F1C29B",
-        colorPants: "#0F172A",
-        colorHair: "#451A03",
-        proportions: { headScale: 1.0, bodyHeight: 0.98, limbLength: 1.0 },
-        voiceId: "id-ID-GadisNeural",
-        voicePitch: 0,
-        voiceSpeed: 1.0,
-        expression: "mikir",
-        accessory: "kacamata",
-        catchphrase: "Baca dulu aturannya!",
-        forbidden: "Tidak pernah panik tanpa rencana",
-      },
-    ],
-    sets: [
-      {
-        id: "set-1",
-        name: "Alun-alun Utama",
-        template: "desa",
-        mood: "hangat dan ramai",
-        lighting: "siang",
-        palette: ["#38BDF8", "#84CC16", "#F59E0B", "#E2E8F0"],
-        props: [
-          {
-            id: "prop-1",
-            kind: "pohon",
-            name: "Pohon Voxel",
-            position: [-3.2, 0, -2.5],
-            rotationY: 0,
-            scale: 1.1,
-          },
-          {
-            id: "prop-2",
-            kind: "rumah",
-            name: "Pondok Kayu",
-            position: [3.4, 0, -3.5],
-            rotationY: -0.4,
-            scale: 1.0,
-          },
-        ],
-      },
-    ],
-    visualStyle: {
-      palette: [accentColor, "#3B82F6", "#10B981", "#FACC15"],
-      captionFont: "Inter",
-      cameraDefault: "medium",
-      accentColor,
-      emoji: params.visualStyle === "voxel-3d" ? "🧱" : "🎭",
-    },
-    continuity: {
-      summary: "Serial baru dimulai. Semua karakter berada di lokasi awal.",
-      activeCliffhanger: "",
-      threads: [],
-      characterStates: {},
-    },
-    neverDo: [
-      "Jangan mulai video dengan sapaan generik 'halo guys'",
-      "Jangan copy adegan atau naskah kreator lain",
-      "Jangan ubah warna/proporsi karakter tanpa update Bible",
-    ],
-    changelog: [
-      {
-        date: new Date().toISOString().slice(0, 10),
-        version: 1,
-        change: "Inisialisasi Series Bible",
-        reason: "Pembuatan series baru",
-      },
-    ],
+    world: { rules: [], impossible: [], taboo: [] },
+    characters: [],
+    sets: [],
+    visualStyle: { palette: [accentColor], captionFont: "Inter", cameraDefault: "medium", accentColor, emoji: params.visualStyle === "voxel-3d" ? "🧱" : "🎭" },
+    continuity: { summary: "Serial baru dimulai.", activeCliffhanger: "", threads: [], characterStates: {} },
+    neverDo: [],
+    changelog: [],
   };
+
 }
 
 export function validateAndBumpBible(params: {

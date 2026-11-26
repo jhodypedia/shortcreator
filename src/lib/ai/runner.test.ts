@@ -5,7 +5,7 @@ import { ROLE_DEFAULTS } from "./types";
 import { db } from "../db";
 import { getAppSettings } from "../settings";
 
-vi.mock("../db", () => ({ db: { aiRun: { create: vi.fn(), update: vi.fn() } } }));
+vi.mock("../db", () => ({ db: { aiRun: { create: vi.fn(), update: vi.fn() }, promptPreset: { findMany: vi.fn() }, appSetting: { findUnique: vi.fn() } } }));
 vi.mock("../settings", () => ({ getAppSettings: vi.fn() }));
 
 describe("AI role schemas", () => {
@@ -28,9 +28,11 @@ describe("AI role schemas", () => {
 
 describe("runAiRole", () => {
   it("uses the configured role model and token/timeout settings", async () => {
-    vi.mocked(getAppSettings).mockResolvedValue({ publicSettings: { ai: { provider: "9router", baseUrl: "http://ai.test/v1", roles: { bibleWriter: { model: "custom-main", fallbackModel: "custom-fallback", temperature: 0.4, maxTokens: 1234, timeoutMs: 2345 } } } } as never, secrets: { aiApiKey: "", ttsApiKey: "" } });
+    vi.mocked(getAppSettings).mockResolvedValue({ publicSettings: { ai: { provider: "9router", baseUrl: "http://ai.test/v1", roles: { bibleWriter: { model: "custom-main", fallbackModel: "custom-fallback", temperature: 0.4, maxTokens: 1234, timeoutMs: 2345 } }, maxCostPerEpisodeUsd: 1 }, generation: { aiRetryCount: 2, aiTimeoutMs: 2345 } } as never, secrets: { aiApiKey: "", ttsApiKey: "" } });
     vi.mocked(db.aiRun.create).mockResolvedValue({ id: "run-1" } as never);
     vi.mocked(db.aiRun.update).mockResolvedValue({} as never);
+    vi.mocked(db.promptPreset.findMany).mockResolvedValue([{ payload: { prompt: "active prompt", active: true }, updatedAt: new Date() }] as never);
+    vi.mocked(db.appSetting.findUnique).mockResolvedValue(null as never);
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ premise: "Premise cukup panjang", world: {}, characters: [], sets: [], visualStyle: {}, continuity: {} }) } }] }), { status: 200 }));
     await expect(runAiRole("bibleWriter", { idea: "test idea" })).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(6);
@@ -42,9 +44,11 @@ describe("runAiRole", () => {
   });
 
   it("records terminal validation failure before rejecting", async () => {
-    vi.mocked(getAppSettings).mockResolvedValue({ publicSettings: { ai: { provider: "9router", baseUrl: "http://ai.test/v1", roles: { bibleWriter: { model: "m", fallbackModel: "f", temperature: 0.4, maxTokens: 100, timeoutMs: 1000 } } } } as never, secrets: { aiApiKey: "", ttsApiKey: "" } });
+    vi.mocked(getAppSettings).mockResolvedValue({ publicSettings: { ai: { provider: "9router", baseUrl: "http://ai.test/v1", roles: { bibleWriter: { model: "m", fallbackModel: "f", temperature: 0.4, maxTokens: 100, timeoutMs: 1000 } }, maxCostPerEpisodeUsd: 1 }, generation: { aiRetryCount: 2, aiTimeoutMs: 1000 } } as never, secrets: { aiApiKey: "", ttsApiKey: "" } });
     vi.mocked(db.aiRun.create).mockResolvedValue({ id: "run-failed" } as never);
     vi.mocked(db.aiRun.update).mockResolvedValue({} as never);
+    vi.mocked(db.promptPreset.findMany).mockResolvedValue([{ payload: { prompt: "active prompt", active: true } }] as never);
+    vi.mocked(db.appSetting.findUnique).mockResolvedValue(null as never);
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), { status: 200 }));
     await expect(runAiRole("bibleWriter", { idea: "test idea" })).rejects.toThrow("Validasi Zod gagal");
     expect(db.aiRun.update).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: "run-failed" }, data: expect.objectContaining({ status: "failed", error: expect.stringContaining("Validasi Zod gagal") }) }));
@@ -52,9 +56,11 @@ describe("runAiRole", () => {
   });
 
   it("records invalid role input without contacting the provider", async () => {
-    vi.mocked(getAppSettings).mockResolvedValue({ publicSettings: { ai: { roles: { editor: { model: "m", fallbackModel: "f", temperature: 0.4, maxTokens: 100, timeoutMs: 1000 } } } } as never, secrets: { aiApiKey: "", ttsApiKey: "" } });
+    vi.mocked(getAppSettings).mockResolvedValue({ publicSettings: { ai: { roles: { editor: { model: "m", fallbackModel: "f", temperature: 0.4, maxTokens: 100, timeoutMs: 1000 }, maxCostPerEpisodeUsd: 1 }, generation: { aiRetryCount: 2, aiTimeoutMs: 1000 } } } as never, secrets: { aiApiKey: "", ttsApiKey: "" } });
     vi.mocked(db.aiRun.create).mockResolvedValue({ id: "run-invalid" } as never);
     vi.mocked(db.aiRun.update).mockResolvedValue({} as never);
+    vi.mocked(db.promptPreset.findMany).mockResolvedValue([{ payload: { prompt: "active prompt", active: true } }] as never);
+    vi.mocked(db.appSetting.findUnique).mockResolvedValue(null as never);
     const fetchMock = vi.spyOn(globalThis, "fetch");
     await expect(runAiRole("editor", {})).rejects.toThrow("Invalid editor input");
     expect(fetchMock).not.toHaveBeenCalled();

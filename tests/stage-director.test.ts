@@ -13,12 +13,25 @@ describe("stage director", () => {
         { id: "k5", beat: "payoff", speaker: "Raka", text: "Kita hitung bareng, lengkap sepuluh!", emotion: "senang", action: "wave", moveTo: "counter", durationSec: 2 },
       ],
     });
-    const blocking = directStage(script, 30);
+    const blocking = directStage(script, 30, [], [], { counter: [-1.35, 0, 0], pintu: [1.35, 0, -0.3], tengah_jalan: [0, 0, 0.35], belakang_warung: [-0.75, 0, -0.85] });
     expect(blocking).toHaveLength(5);
     expect(assertStageMovement(blocking)).toBe(true);
     expect(blocking.every((beat) => beat.characters.some((actor) => actor.moving || actor.action !== "idle"))).toBe(true);
     const firstActor = blocking[0].characters[0];
     expect(evaluateStagePosition(blocking[0], firstActor.character, blocking[0].startFrame)).toEqual(firstActor.from);
     expect(evaluateStagePosition(blocking[0], firstActor.character, blocking[0].endFrame)).toEqual(firstActor.to);
+  });
+
+  it("keeps a speaker on their last position and does not assign an index-rotating gesture", () => {
+    const script = EpisodeScriptSchema.parse({ lines: [
+      { id: "a", speaker: "Raka", text: "Halo semua", emotion: "netral", durationSec: 2, moveTo: "counter" },
+      { id: "b", speaker: "Bimo", text: "Iya, aku dengar", emotion: "netral", durationSec: 2 },
+      { id: "c", speaker: "Raka", text: "Begitu ceritanya", emotion: "netral", durationSec: 2 },
+    ] });
+    const beats = directStage(script, 30, [], ["Raka", "Bimo"], { counter: [-1.35, 0, 0], pintu: [1.35, 0, -0.3] });
+    expect(beats[0].characters[0].action).toBe("talk");
+    expect(beats[2].characters[0].from).toEqual(beats[0].characters[0].to);
+    expect(beats[2].characters[0].to).toEqual(beats[0].characters[0].to);
+    expect(evaluateStagePosition(beats[2], "Raka", beats[2].startFrame + 1)).toEqual(beats[0].characters[0].to);
   });
 });

@@ -13,9 +13,10 @@ import { VoxelCharacter } from "./characters/VoxelCharacter";
 import { VoxelSetScene } from "./scenes/VoxelSetScene";
 import { SafeAreaGuide, WordCaptions } from "./captions/WordCaptions";
 import { EpisodeAudioLayer } from "./audio/EpisodeAudioLayer";
-import { directStage, evaluateStagePosition, DirectedBeat } from "../lib/stageDirector";
+import { directStage, evaluateStageFacing, evaluateStagePosition, DirectedBeat } from "../lib/stageDirector";
 import { CartoonEffects } from "./CartoonEffects";
 import { ActionTypeSchema } from "../lib/schemas";
+import { VoxelAnimal } from "./characters/VoxelAnimal";
 
 export interface ShortCompositionProps {
   episode: {
@@ -43,8 +44,12 @@ export interface ShortCompositionProps {
 export function chooseBeatShot(line: EpisodeScript["lines"][number], index: number): ShotItem["shot"] {
   if (line.beat === "payoff") return "dolly-in";
   if (line.beat === "twist" || line.emotion === "kaget" || line.action === "surprised") return "close-up";
-  if (line.action === "walk" || line.action === "drop_item" || line.action === "pick_up") return "wide";
+  if (line.action === "walk" || line.action === "drop_item" || line.action === "pick_up" || line.moveTo) return "wide";
   return index % 2 === 0 ? "medium" : "over-shoulder";
+}
+
+export function directedShotWins(editorShot: ShotItem | undefined, directedShot: ShotItem | undefined) {
+  return editorShot ?? directedShot;
 }
 
 export function cameraZoomRatio(start: number[], end: number[]) {
@@ -53,9 +58,36 @@ export function cameraZoomRatio(start: number[], end: number[]) {
   return a === 0 ? 0 : Math.abs(a - b) / a;
 }
 
+export function screenCaptionSpacing(words: string[]) {
+  return words.filter(Boolean).join(" ");
+}
+
 export function punchInZoomRatio(start: number[], lookAt: number[]) {
   const distance = Math.hypot(...start.map((v, index) => v - lookAt[index]));
   return distance > 0 ? 0.12 : 0;
+}
+
+export function isSpeakerFramed(cameraPosition: [number, number, number], lookAt: [number, number, number], speakerPosition: [number, number, number], fov: number, aspect = 9 / 16, margin = 0.1) {
+  const camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 100);
+  camera.position.set(...cameraPosition);
+  camera.lookAt(...lookAt);
+  camera.updateMatrixWorld();
+  const head = new THREE.Vector3(speakerPosition[0], speakerPosition[1] + 1.75, speakerPosition[2]).project(camera);
+  const bodyTop = new THREE.Vector3(speakerPosition[0], speakerPosition[1] + 1.25, speakerPosition[2]).project(camera);
+  return head.z >= -1 && head.z <= 1 && bodyTop.z >= -1 && bodyTop.z <= 1 && Math.abs(head.x) <= 1 - margin && head.y <= 1 - margin && head.y >= -1 + margin;
+}
+
+export function frameSpeakerCamera(shot: ShotItem, speakerPosition: [number, number, number]): ShotItem {
+  const camera = shot.camera;
+  if (!camera) return shot;
+  let position = [...camera.position] as [number, number, number];
+  let lookAt = [...camera.lookAt] as [number, number, number];
+  const fov = camera.fov ?? 45;
+  for (let attempt = 0; attempt < 24 && !isSpeakerFramed(position, lookAt, speakerPosition, fov); attempt++) {
+    lookAt = [THREE.MathUtils.lerp(lookAt[0], speakerPosition[0], 0.4), THREE.MathUtils.lerp(lookAt[1], speakerPosition[1] + 1.2, 0.4), THREE.MathUtils.lerp(lookAt[2], speakerPosition[2], 0.4)];
+    position = [lookAt[0] + (position[0] - lookAt[0]) * 1.08, lookAt[1] + (position[1] - lookAt[1]) * 1.08, lookAt[2] + (position[2] - lookAt[2]) * 1.08];
+  }
+  return { ...shot, camera: { ...camera, position, lookAt } };
 }
 
 const CameraController: React.FC<{
@@ -80,14 +112,14 @@ const CameraController: React.FC<{
   if (activeShot?.shot === "dolly-in" && punchIn) {
     // A single quick punch-in only; clamp camera travel to 12% of the original distance.
     const push = Math.min(1, progress * 4) * 0.12;
-    cx = THREE.MathUtils.lerp(pos[0], look[0] + (pos[0] - look[0]) * (1 - push), progress < 0.25 ? progress / 0.25 : 1);
-    cy = THREE.MathUtils.lerp(pos[1], look[1] + (pos[1] - look[1]) * (1 - push), progress < 0.25 ? progress / 0.25 : 1);
-    cz = THREE.MathUtils.lerp(pos[2], look[2] + (pos[2] - look[2]) * (1 - push), progress < 0.25 ? progress / 0.25 : 1);
+    cx = look[0] + (pos[0] - look[0]) * (1 - push);
+    cy = look[1] + (pos[1] - look[1]) * (1 - push);
+    cz = look[2] + (pos[2] - look[2]) * (1 - push);
   } else if (activeShot?.shot === "pan") {
-    cx = pos[0] + Math.sin(progress * Math.PI * 2) * Math.max(0.03, Math.abs(pos[0]) * 0.03);
+    cx = pos[0] + Math.sin(progress * Math.PI * 2) * Math.max(0.01, Math.abs(pos[0]) * 0.03);
   } else {
-    cx += Math.sin(frame * 0.035) * Math.max(0.015, Math.abs(pos[0]) * 0.02);
-    cy += Math.sin(frame * 0.027) * 0.025;
+    cx += Math.sin(frame * 0.035) * Math.max(0.01, Math.abs(pos[0]) * 0.015);
+    cy += Math.sin(frame * 0.027) * 0.015;
   }
 
   return (
@@ -129,25 +161,31 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
   const directedShots = useMemo(() => lines.map((line, idx): ShotItem => {
     const type = chooseBeatShot(line, idx);
     const position: Record<ShotItem["shot"], [number, number, number]> = {
-      wide: [0, 4.2, 9.5], medium: [idx % 2 ? -1.1 : 1.1, 2.2, 5.2],
-      "over-shoulder": [idx % 2 ? 1.7 : -1.7, 2.1, 3.8], "close-up": [idx % 2 ? -0.3 : 0.3, 1.85, 2.8],
-      "low-angle": [0.4, 0.75, 3.8], "high-angle": [0, 4, 4], "dolly-in": [0, 2, 5], pan: [0, 2, 5],
+      wide: [0, 4.2, 9.5], medium: [idx % 2 ? -0.6 : 0.6, 2.2, 5.2],
+      "over-shoulder": [idx % 2 ? 1 : -1, 2.1, 3.8], "close-up": [idx % 2 ? -0.25 : 0.25, 1.85, 4.2],
+      "low-angle": [0.4, 0.75, 4.6], "high-angle": [0, 4, 4.8], "dolly-in": [0, 2, 5], pan: [0, 2, 5],
     };
     const timing = lineTimings.find((item) => item.lineId === line.id);
     const startFrame = timing?.startFrame ?? idx * 60;
     const endFrame = timing?.endFrame ?? startFrame + 60;
-    return { id: `directed-${line.id}`, lineId: line.id, shot: type, startFrame, endFrame,
-      camera: { position: position[type], lookAt: [0, 1.45, 0], fov: type === "close-up" ? 42 : 48 }, transition: "cut", note: line.action ?? line.beat ?? "dialog" };
-  }), [lines, lineTimings]);
+    const characterIndex = bible.characters.findIndex((character) => character.name === line.speaker);
+    const speakerX = bible.characters.length < 2 ? 0 : Math.max(-1.35, Math.min(1.35, (characterIndex - (bible.characters.length - 1) / 2) * 1.6));
+    const isWide = type === "wide";
+    const target = [isWide ? 0 : speakerX, 1.35, 0] as [number, number, number];
+    const directed: ShotItem = { id: `directed-${line.id}`, lineId: line.id, shot: type, startFrame, endFrame,
+      camera: { position: [position[type][0] + (isWide ? 0 : speakerX), position[type][1], position[type][2]], lookAt: target, fov: type === "close-up" ? 42 : 48 }, transition: "cut", note: line.action ?? line.beat ?? "dialog" };
+    return frameSpeakerCamera(directed, [isWide ? 0 : speakerX, 0, 0]);
+  }), [lines, lineTimings, bible.characters]);
   const directedBeats = useMemo(
-    () => directStage(episode.script, fps, lineTimings, bible.characters.map((character) => character.name)),
-    [episode.script, fps, lineTimings, bible.characters],
+    () => directStage(episode.script, fps, lineTimings, bible.characters.map((character) => character.name), Object.fromEntries(bible.sets.map((set) => [set.id, set.stagePoints ?? {}]).filter(([, points]) => Object.keys(points).length).flatMap(([id, points]) => Object.entries(points as Record<string, [number, number, number]>).map(([key, value]) => [`${id}:${key}`, value])))),
+    [episode.script, fps, lineTimings, bible.characters, bible.sets],
   );
   const effectCues = useMemo(() => directedBeats.map((beat) => ({
     frame: beat.startFrame,
     action: ActionTypeSchema.parse(beat.characters[0]?.action ?? "talk"),
     prop: beat.characters[0]?.prop,
     sfx: beat.characters[0]?.sfx,
+    position: beat.characters[0]?.to,
   })), [directedBeats]);
 
   const activeLineTiming = useMemo(
@@ -170,19 +208,35 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
 
   const activeShot = useMemo(() => {
     const candidate = directedShots.find((s) => frame >= s.startFrame && frame < s.endFrame);
-    const fallback = shots.find((s) => frame >= s.startFrame && frame < s.endFrame) ?? shots[shots.length - 1];
-    if (candidate) return candidate;
-    if (fallback) return fallback;
+    const fallback = shots.find((s) => (s.lineId ? s.lineId === activeLine?.id : frame >= s.startFrame && frame < s.endFrame)) ?? shots.find((s) => frame >= s.startFrame && frame < s.endFrame) ?? shots[shots.length - 1];
+    const selected = directedShotWins(fallback, candidate);
+    if (selected) return selected;
     return { shot: "medium" as const, startFrame: 0, endFrame: Number.MAX_SAFE_INTEGER,
       camera: { position: [0, 2.2, 5.2] as [number, number, number], lookAt: [0, 1.4, 0] as [number, number, number], fov: 45 }, transition: "cut" as const, note: "medium fallback" };
-  }, [directedShots, shots, frame]);
+  }, [directedShots, shots, frame, activeLine?.id]);
   const punchIn = activeShot?.shot === "dolly-in" &&
     Boolean(activeLine?.beat === "payoff" || activeLine?.beat === "twist") &&
     !directedShots.some((shot) => shot.shot === "dolly-in" && shot.startFrame < (activeShot?.startFrame ?? 0));
+  const activeSpeakerPosition = useMemo(() => {
+    const beat = directedBeats.find((item) => frame >= item.startFrame && frame < item.endFrame);
+    const speakerCue = beat?.characters.find((item) => item.character === activeLine?.speaker);
+    if (activeShot.shot === "wide" && beat) {
+      const positions = beat.characters.map((cue) => evaluateStagePosition(beat, cue.character, frame));
+      if (positions.length) return [positions.reduce((sum, point) => sum + point[0], 0) / positions.length, 0, positions.reduce((sum, point) => sum + point[2], 0) / positions.length] as [number, number, number];
+    }
+    return beat && speakerCue ? evaluateStagePosition(beat, speakerCue.character, frame) : [0, 0, 0] as [number, number, number];
+  }, [directedBeats, frame, activeLine?.speaker, activeShot]);
+  const activeBeat = directedBeats.find((beat) => frame >= beat.startFrame && frame < beat.endFrame);
+  const activeLineCue = activeBeat?.characters.find((cue) => cue.character === activeLine?.speaker);
+  const measuredSpeakerPosition = activeShot.shot === "wide" ? activeSpeakerPosition : activeBeat && activeLineCue ? evaluateStagePosition(activeBeat, activeLineCue.character, frame) : activeSpeakerPosition;
+  const cameraAdjustedShot = useMemo(() => frameSpeakerCamera(activeShot, measuredSpeakerPosition), [activeShot, measuredSpeakerPosition]);
 
   const activeSet = useMemo(() => {
     const targetId = activeLine?.setId ?? episode.script?.setId;
-    return bible.sets.find((s) => s.id === targetId) ?? bible.sets[0];
+    const requested = bible.sets.find((s) => s.id === targetId);
+    if (requested) return requested;
+    const defaultWarung = bible.sets.find((set) => /warung pak blokir/i.test(set.name));
+    return defaultWarung ?? bible.sets[0];
   }, [activeLine?.setId, bible.sets, episode.script?.setId]);
 
   const isAnyWordActive = useMemo(
@@ -214,10 +268,16 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
           shadows={qualityScale >= 1}
           camera={{ position: [0, 2.2, 5.2], fov: 45 }}
         >
-          <CameraController activeShot={activeShot} frame={frame} punchIn={punchIn} />
+          <CameraController activeShot={cameraAdjustedShot} frame={frame} punchIn={punchIn} />
           {activeSet && <VoxelSetScene set={activeSet} frame={frame} fps={fps} />}
 
           {bible.characters.map((char, idx) => {
+            if (char.bodyType === "quadruped") {
+              const animalCue = directedBeats.find((beat) => frame >= beat.startFrame && frame < beat.endFrame)?.characters.find((item) => item.character === char.name);
+              const lastCue = directedBeats.filter((beat) => beat.endFrame <= frame).reverse().find((beat) => beat.characters.some((item) => item.character === char.name))?.characters.find((item) => item.character === char.name);
+              const animalPosition = animalCue ? evaluateStagePosition(directedBeats.find((beat) => frame >= beat.startFrame && frame < beat.endFrame)!, char.name, frame) : lastCue?.to ?? [2.2, 0, 0];
+              return <VoxelAnimal key={char.id} character={char} position={animalPosition} frame={frame} fps={fps} action={animalCue?.action ?? "idle"} />;
+            }
             const activeDirectedBeat = directedBeats.find((beat) => frame >= beat.startFrame && frame < beat.endFrame) ?? directedBeats[directedBeats.length - 1];
             const cue: DirectedBeat["characters"][number] | undefined = activeDirectedBeat?.characters.find((item) => item.character === char.name);
             const previousCue = directedBeats.filter((beat) => beat.endFrame <= frame).reverse().find((beat) => beat.characters.some((item) => item.character === char.name))?.characters.find((item) => item.character === char.name);
@@ -234,7 +294,9 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
             const targetPosition = targetCue && activeDirectedBeat
               ? evaluateStagePosition(activeDirectedBeat, targetCue.character, frame)
               : undefined;
-            const facingY = targetPosition
+            const facingY = cue?.moving
+              ? evaluateStageFacing(activeDirectedBeat!, char.name, frame)
+              : targetPosition
               ? (targetPosition[0] - stagePosition[0] < 0 ? -0.28 : 0.28)
               : idx === 0 ? 0.28 : -0.28;
             const isSpeaking =
@@ -245,7 +307,7 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
                 : char.expression;
 
             return (
-              <VoxelCharacter
+            <VoxelCharacter
                 key={char.id}
                 character={char}
                 visualStyle={visualStyle}
@@ -255,9 +317,13 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
                 previousAction={cue?.previousAction ?? previousAction}
                 transitionStartFrame={cue?.transitionStartFrame ?? cue?.startFrame}
                 position={stagePosition}
-                rotationY={cue?.lookAt === "camera" ? 0 : facingY}
+                rotationY={facingY}
+                lookDirection={targetPosition && targetPosition[0] < stagePosition[0] ? -1 : 1}
                 frame={frame}
                 fps={fps}
+                prop={cue?.prop}
+                propFrame={frame - (cue?.startFrame ?? frame)}
+                propAction={action === "walk" && cue?.moving ? "walk" : cue?.action}
               />
             );
           })}
@@ -309,7 +375,7 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
       {showSafeArea && <SafeAreaGuide />}
 
       {/* Audio dialog + SFX + BGM dengan ducking -12 dB */}
-      <EpisodeAudioLayer
+        <EpisodeAudioLayer
         voiceTiming={episode.voiceTiming}
         audioFiles={episode.audioFiles}
         audioBaseUrl={audioBaseUrl}
@@ -318,7 +384,7 @@ export const ShortComposition: React.FC<ShortCompositionProps> = ({
         actionCues={directedBeats.map((beat) => ({
           frame: beat.startFrame,
           action: beat.characters[0]?.action ?? "talk",
-          sfx: beat.characters[0]?.sfx,
+          sfx: beat.characters[0]?.action === "slam_table" ? "/sfx/action-90.wav" : beat.characters[0]?.action === "walk" ? "/sfx/action-150.wav" : beat.characters[0]?.action === "drop_item" ? "/sfx/action-240.wav" : beat.characters[0]?.action === "pick_up" || beat.characters[0]?.action === "hand_over" ? "/sfx/action-880.wav" : beat.characters[0]?.action === "laugh" ? "/sfx/action-430.wav" : beat.characters[0]?.sfx,
         }))}
         totalFrames={episode.totalFrames}
       />

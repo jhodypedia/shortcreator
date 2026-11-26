@@ -29,12 +29,16 @@ async function startStorageHttpServer(): Promise<{
   close: () => Promise<void>;
 }> {
   const storageRoot = path.join(process.cwd(), "storage");
+  const publicRoot = path.join(process.cwd(), "public");
   const server = http.createServer((req, res) => {
     const reqUrl = (req.url || "/").split("?")[0];
     const cleanRel = reqUrl.replace(/^\/api\/storage\//, "").replace(/^\/+/, "");
-    const target = path.resolve(storageRoot, cleanRel);
+    const inStorage = reqUrl.startsWith("/api/storage/");
+    const root = inStorage ? storageRoot : publicRoot;
+    const relative = inStorage ? cleanRel : reqUrl.replace(/^\/+/, "");
+    const target = path.resolve(root, relative);
 
-    if (!target.startsWith(storageRoot) || !fssync.existsSync(target)) {
+    if (!target.startsWith(root) || !fssync.existsSync(target)) {
       res.writeHead(404);
       res.end("Not found");
       return;
@@ -95,6 +99,9 @@ export async function renderEpisodeToMp4(params: {
 
   const bible = SeriesBibleSchema.parse(episode.series.bible);
   const script = EpisodeScriptSchema.parse(episode.script);
+  const { publicSettings } = await getAppSettings();
+  const renderSettings = publicSettings.render;
+  if (!renderSettings.outputDir || !renderSettings.fps || !renderSettings.width || !renderSettings.height || !renderSettings.ffmpegPath) throw new Error("Render belum dikonfigurasi; atur folder output, ffmpeg, fps, lebar, dan tinggi di Pengaturan.");
 
   const audioFiles = Array.isArray(episode.audioFiles)
     ? (episode.audioFiles as Array<{
@@ -103,6 +110,9 @@ export async function renderEpisodeToMp4(params: {
         durationSec: number;
       }>)
     : [];
+
+  const actionSfx = new Map<string, string>([["slam_table", "/sfx/action-90.wav"], ["walk", "/sfx/action-150.wav"], ["drop_item", "/sfx/action-240.wav"], ["pick_up", "/sfx/action-880.wav"], ["hand_over", "/sfx/action-880.wav"], ["laugh", "/sfx/action-430.wav"]]);
+  const episodeLines = script.lines.map((line) => ({ ...line, sfx: line.sfx ? actionSfx.get(line.action ?? "") ?? line.sfx : actionSfx.get(line.action ?? "") }));
 
   let voiceTiming = episode.voiceTiming
     ? VoiceTimingSchema.safeParse(episode.voiceTiming).data ?? null
@@ -114,9 +124,9 @@ export async function renderEpisodeToMp4(params: {
       audioMap[af.lineId] = af.durationSec;
     }
     const built = buildVoiceTimingObject({
-      lines: script.lines,
+      lines: episodeLines,
       audioDurations: audioMap,
-      fps: 30,
+      fps: publicSettings.render.fps,
     });
     voiceTiming = built.voiceTiming;
   }
@@ -141,17 +151,14 @@ export async function renderEpisodeToMp4(params: {
       )
   );
 
-  const { publicSettings } = await getAppSettings();
   const seriesSlug = sanitizeSlug(episode.series.name);
-  const epNumPad = String(episode.number).padStart(3, "0");
-  const outputRoot = path.resolve(
-    /* turbopackIgnore: true */ process.cwd(),
-    publicSettings.render.outputDir
-  );
+  const configuredOutputDir = publicSettings.render.outputDir;
+  const outputRoot = path.isAbsolute(configuredOutputDir) ? configuredOutputDir : path.resolve(process.cwd(), configuredOutputDir);
   const outDir = path.resolve(outputRoot, seriesSlug);
   await fs.mkdir(outDir, { recursive: true });
-  const diskPath = path.join(outDir, `ep-${epNumPad}.mp4`);
-  const relApiPath = `/api/storage/renders/${seriesSlug}/ep-${epNumPad}.mp4`;
+  const filename = `${sanitizeSlug(episode.title)}.mp4`;
+  const diskPath = path.join(outDir, filename);
+  const relApiPath = `/api/storage/${path.relative(path.resolve(process.cwd(), "storage"), diskPath).split(path.sep).join("/")}`;
 
   const storageServer = await startStorageHttpServer();
   const startedAt = Date.now();
@@ -178,7 +185,7 @@ export async function renderEpisodeToMp4(params: {
         number: episode.number,
         title: episode.title,
         hook: episode.hook,
-        script,
+      script: { ...script, lines: episodeLines },
         voiceTiming,
         shots,
         audioFiles,
@@ -206,9 +213,9 @@ export async function renderEpisodeToMp4(params: {
       composition: {
         ...composition,
         durationInFrames: totalFrames,
-        fps: publicSettings.render.fps || 30,
-        width: publicSettings.render.width || 1080,
-        height: publicSettings.render.height || 1920,
+        fps: renderSettings.fps,
+        width: renderSettings.width,
+        height: renderSettings.height,
       },
       serveUrl: cachedServeUrl,
       codec: "h264",
@@ -249,7 +256,7 @@ export async function renderEpisodeToMp4(params: {
       data: {
         renderPath: relApiPath,
         totalFrames,
-        durationSec: Number((totalFrames / (publicSettings.render.fps || 30)).toFixed(2)),
+        durationSec: Number((totalFrames / renderSettings.fps).toFixed(2)),
         status: "review",
       },
     });

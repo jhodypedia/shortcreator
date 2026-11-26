@@ -67,7 +67,7 @@ export async function processNextQueueItem(): Promise<{
     }
 
     const { publicSettings } = await getAppSettings();
-    const maxRetries = publicSettings.render.maxRetries || 2;
+    const maxRetries = publicSettings.render.maxRetries;
 
     await db.queueItem.update({
       where: { id: nextItem.id },

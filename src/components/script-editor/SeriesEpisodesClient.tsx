@@ -269,7 +269,6 @@ export function SeriesEpisodesClient({
                       Hook: {ep.hook}
                     </CardDescription>
                   </div>
-
                   {ep.renderPath && (
                     <a
                       href={ep.renderPath}

@@ -3,7 +3,6 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { getAppSettings } from "./settings";
-import { estimateLineDuration } from "./timing";
 
 const execFileAsync = promisify(execFile);
 
@@ -63,52 +62,6 @@ export async function measureAudioDurationSec(filePath: string): Promise<number>
   }
 }
 
-function buildSynthesizedSpeechWav(text: string, durationSec: number, pitchOffset = 0): Buffer {
-  const sampleRate = 22050;
-  const numSamples = Math.max(Math.round(sampleRate * durationSec), sampleRate / 2);
-  const dataSize = numSamples * 2;
-  const buffer = Buffer.alloc(44 + dataSize);
-
-  buffer.write("RIFF", 0);
-  buffer.writeUInt32LE(36 + dataSize, 4);
-  buffer.write("WAVE", 8);
-  buffer.write("fmt ", 12);
-  buffer.writeUInt32LE(16, 16); // PCM
-  buffer.writeUInt16LE(1, 20); // Linear PCM
-  buffer.writeUInt16LE(1, 22); // Mono
-  buffer.writeUInt32LE(sampleRate, 24);
-  buffer.writeUInt32LE(sampleRate * 2, 28);
-  buffer.writeUInt16LE(2, 32);
-  buffer.writeUInt16LE(16, 34);
-  buffer.write("data", 36);
-  buffer.writeUInt32LE(dataSize, 40);
-
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  const wordCount = Math.max(1, words.length);
-  const baseFreq = 190 + pitchOffset * 6;
-
-  for (let i = 0; i < numSamples; i++) {
-    const t = i / sampleRate;
-    const progress = i / numSamples;
-    const wordIdx = Math.min(wordCount - 1, Math.floor(progress * wordCount));
-    const wordLocal = (progress * wordCount) % 1;
-    // Envelope per kata agar ritme terdengar seperti suku kata
-    const env =
-      wordLocal < 0.1 || wordLocal > 0.85
-        ? 0.05
-        : Math.sin(((wordLocal - 0.1) / 0.75) * Math.PI) * 0.22;
-    const freq = baseFreq + ((words[wordIdx]?.length ?? 4) % 5) * 18;
-    const sample =
-      (Math.sin(2 * Math.PI * freq * t) * 0.7 +
-        Math.sin(2 * Math.PI * freq * 1.5 * t) * 0.3) *
-      env;
-    const int16 = Math.max(-32767, Math.min(32767, Math.round(sample * 32767)));
-    buffer.writeInt16LE(int16, 44 + i * 2);
-  }
-
-  return buffer;
-}
-
 export async function generateLineAudio(params: {
   episodeId: string;
   lineId: string;
@@ -119,7 +72,8 @@ export async function generateLineAudio(params: {
 }): Promise<TtsResult> {
   const { publicSettings, secrets } = await getAppSettings();
   const provider = publicSettings.tts.provider;
-  const voiceId = params.voiceId || publicSettings.tts.defaultVoiceId || "id-ID-ArdiNeural";
+  const voiceId = params.voiceId || publicSettings.tts.defaultVoiceId;
+  if (!voiceId) throw new Error("Pilih voice ID di Pengaturan TTS sebelum membuat audio.");
   const speed = params.speed ?? publicSettings.tts.defaultSpeed ?? 1.0;
   const pitch = params.pitch ?? publicSettings.tts.defaultPitch ?? 0;
 
@@ -136,7 +90,7 @@ export async function generateLineAudio(params: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini-tts",
+          model: publicSettings.tts.model,
           voice: voiceId.startsWith("id-") ? "alloy" : voiceId,
           input: params.text,
           speed,
@@ -240,20 +194,5 @@ export async function generateLineAudio(params: {
     throw new Error("Provider TTS lokal hanya untuk audio panduan sintetis. Pilih Edge-TTS atau ElevenLabs/OpenAI, atau unggah rekaman manusia untuk suara natural.");
   }
 
-  // Voice-guide fallback for failed remote TTS; never label this as natural speech.
-  const fileName = `${params.lineId}.wav`;
-  const diskPath = path.join(dir, fileName);
-  const estDuration = estimateLineDuration(params.text, 0.4 / Math.max(0.6, speed));
-  const wavBuffer = buildSynthesizedSpeechWav(params.text, estDuration, pitch);
-  await fs.writeFile(diskPath, wavBuffer);
-  const durationSec = await measureAudioDurationSec(diskPath);
-
-  return {
-    path: `/api/storage/audio/${params.episodeId}/${fileName}`,
-    diskPath,
-    durationSec,
-    providerUsed: "local-fallback",
-    notice:
-      "TTS provider tidak tersedia — audio ini hanya suara panduan sintetis, bukan suara natural. Coba ulangi saat online atau unggah rekaman manusia.",
-  };
+  throw new Error(`Provider TTS ${provider} gagal membuat audio. Coba lagi atau periksa konfigurasi provider.`);
 }

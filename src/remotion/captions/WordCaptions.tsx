@@ -5,6 +5,10 @@ import { z } from "zod";
 
 type CaptionStyle = z.infer<typeof CaptionStyleSchema>;
 
+export function joinCaptionWords(words: string[]) {
+  return words.filter(Boolean).join(" ");
+}
+
 export const SafeAreaGuide: React.FC = () => {
   return (
     <div
@@ -97,10 +101,15 @@ export const WordCaptions: React.FC<{
 
   if (fallbackIdx === -1) return null;
 
-  // Kelompokkan 3-4 kata per baris agar selalu padat & terbaca di HP
-  const chunkSize = 4;
+  const chunkSize = 8;
   const chunkStart = Math.floor(fallbackIdx / chunkSize) * chunkSize;
-  const visibleWords = captions.slice(chunkStart, chunkStart + chunkSize);
+  const lineId = captions[fallbackIdx]?.lineId;
+  const sameLine = lineId ? captions.map((caption, index) => ({ caption, index })).filter(({ caption }) => caption.lineId === lineId) : captions.slice(chunkStart, chunkStart + chunkSize).map((caption, index) => ({ caption, index: chunkStart + index }));
+  const groupSize = 8;
+  const lineWords = sameLine.slice(0, groupSize);
+  const activeOnLine = sameLine.findIndex(({ index }) => index === fallbackIdx);
+  const windowStart = Math.max(0, Math.min(lineWords.length - groupSize, Math.floor(Math.max(0, activeOnLine) / groupSize) * groupSize));
+  const visibleWords = lineWords.slice(windowStart, windowStart + groupSize);
 
   const fontSize = style?.fontSize ?? 56;
   const activeColor = style?.activeColor ?? "#FACC15";
@@ -114,7 +123,7 @@ export const WordCaptions: React.FC<{
         position: "absolute",
         left: 64,
         right: 64,
-        bottom: position === "tengah" ? "44%" : 320,
+        bottom: position === "tengah" ? "44%" : "22%",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -150,13 +159,12 @@ export const WordCaptions: React.FC<{
           display: "flex",
           flexWrap: "wrap",
           justifyContent: "center",
-          gap: "12px 16px",
+        gap: "8px 12px",
           boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
           border: "2px solid rgba(255,255,255,0.12)",
         }}
       >
-        {visibleWords.map((item, idx) => {
-          const globalIdx = chunkStart + idx;
+        {visibleWords.map(({ caption: item, index: globalIdx }) => {
           const isCurrent = globalIdx === fallbackIdx;
           return (
             <span
@@ -174,7 +182,7 @@ export const WordCaptions: React.FC<{
                   "0 4px 0 #000000, -2px -2px 0 #000000, 2px -2px 0 #000000, -2px 2px 0 #000000",
               }}
             >
-              {item.word}
+          {item.word}
             </span>
           );
         })}

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const AI_ROLES = ["bibleWriter", "characterDesigner", "setDesigner", "scriptwriter", "director", "critic", "editor"] as const;
+export const AI_ROLES = ["bibleWriter", "characterDesigner", "setDesigner", "scriptwriter", "director", "critic", "editor", "ideaGenerator", "outlineGenerator"] as const;
 export const AiRoleSchema = z.enum(AI_ROLES);
 export type AiRole = z.infer<typeof AiRoleSchema>;
 export const AiRoleSettingsSchema = z.object({ model: z.string().min(1), fallbackModel: z.string().min(1), temperature: z.number().min(0).max(2), maxTokens: z.number().int().positive(), timeoutMs: z.number().int().positive() });

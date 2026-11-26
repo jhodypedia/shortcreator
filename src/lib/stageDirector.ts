@@ -1,12 +1,6 @@
 import { EpisodeScript, ScriptLine, StagePositionSchema } from "./schemas";
 import { CharacterAction } from "./animation/actions";
-
-export const STAGE_POSITIONS = {
-  counter: [-1.35, 0, 0] as [number, number, number],
-  pintu: [1.35, 0, -0.3] as [number, number, number],
-  tengah_jalan: [0, 0, 0.35] as [number, number, number],
-  belakang_warung: [-0.75, 0, -0.85] as [number, number, number],
-};
+const DEFAULT_STAGE_POSITIONS: Record<string, [number, number, number]> = {};
 
 export interface DirectedCharacter {
   character: string;
@@ -61,22 +55,33 @@ export function directStage(
   fps = 30,
   lineTimings: Array<{ lineId: string; startFrame: number; endFrame: number }> = [],
   cast: string[] = [],
+  stagePoints: Record<string, [number, number, number]> = {},
 ): DirectedBeat[] {
   const previous = new Map<string, [number, number, number]>();
+  const previousActions = new Map<string, CharacterAction>();
   let cursor = 0;
+  const castPositions = new Map<string, [number, number, number]>();
+  const positions: Record<string, [number, number, number]> = Object.keys(stagePoints).length ? stagePoints : DEFAULT_STAGE_POSITIONS;
+  const stageMarks = Object.values(positions);
+  cast.forEach((name, index) => { if (stageMarks.length) castPositions.set(name, stageMarks[index % stageMarks.length]); });
   return script.lines.map((line, index) => {
     const timing = lineTimings.find((item) => item.lineId === line.id);
     const beatStart = timing?.startFrame ?? cursor;
     const durationFrames = Math.max(1, (timing?.endFrame ?? beatStart + Math.round(line.durationSec * fps)) - beatStart);
     cursor = beatStart;
     const speaker = line.speaker;
-    const speakerStart = previous.get(speaker) ?? STAGE_POSITIONS[index % 2 === 0 ? "pintu" : "counter"];
-    const speakerPosition = line.moveTo ? STAGE_POSITIONS[line.moveTo] : speakerStart;
+    const defaultPosition = stageMarks[index % Math.max(1, stageMarks.length)] ?? [0, 0, 0];
+    const speakerStart = previous.get(speaker) ?? castPositions.get(speaker) ?? defaultPosition;
+    let speakerPosition = line.moveTo ? positions[line.moveTo] ?? speakerStart : speakerStart;
+    if (line.moveTo && Math.hypot(speakerPosition[0] - speakerStart[0], speakerPosition[2] - speakerStart[2]) < 0.05) {
+      const nextMark = Object.values(positions).find((mark) => Math.hypot(mark[0] - speakerStart[0], mark[2] - speakerStart[2]) >= 0.85);
+      if (nextMark) speakerPosition = nextMark;
+    }
     const beatEnd = cursor + durationFrames;
     const out: DirectedCharacter[] = [{
       character: speaker,
       action: beatAction(line),
-      previousAction: "idle",
+      previousAction: previousActions.get(speaker) ?? "idle",
       transitionStartFrame: beatStart,
       from: speakerStart,
       to: speakerPosition,
@@ -88,34 +93,28 @@ export function directStage(
       sfx: line.sfxPath ?? line.sfx,
     }];
 
-    // Keep listeners in a distinct blocking mark and animate a reaction on their beat delay.
+    // Keep every cast member on their saved mark; only explicit reactions add a cue.
     const allCharacters = [...new Set([...cast, ...script.lines.map((l) => l.speaker)])];
-    const listeners = allCharacters.filter((name) => name !== speaker).filter((name) =>
-      line.reactions?.some((reaction) => reaction.character === name),
-    );
-    const occupied = [speakerPosition];
+    const listeners = allCharacters.filter((name) => name !== speaker);
     for (const listener of listeners) {
-      const oldPosition = previous.get(listener) ?? STAGE_POSITIONS["belakang_warung"];
-      const listenerPosition = oldPosition;
+      const oldPosition = previous.get(listener) ?? castPositions.get(listener) ?? stageMarks[0] ?? [0, 0, 0];
       const reaction = line.reactions?.find((r) => r.character === listener);
       out.push({
         character: listener,
-        action: reaction?.action ?? (line.emotion === "kaget" ? "surprised" : "nod"),
-        previousAction: "idle",
+        action: reaction?.action ?? "idle",
+        previousAction: previousActions.get(listener) ?? "idle",
         transitionStartFrame: cursor + (reaction?.delayFrames ?? 0),
         from: oldPosition,
-        to: listenerPosition,
+        to: oldPosition,
         lookAt: speaker,
         startFrame: cursor + (reaction?.delayFrames ?? 0),
         endFrame: beatEnd,
         moving: false,
       });
-      occupied.push(listenerPosition);
     }
     previous.set(speaker, speakerPosition);
-    for (const character of allCharacters) {
-      if (!previous.has(character)) previous.set(character, character === speaker ? speakerPosition : STAGE_POSITIONS.belakang_warung);
-    }
+    previousActions.set(speaker, beatAction(line));
+    for (const character of allCharacters) if (!previous.has(character)) previous.set(character, castPositions.get(character) ?? stageMarks[0] ?? [0, 0, 0]);
     cursor = beatEnd;
     return { lineId: line.id, startFrame: beatStart, endFrame: beatEnd, characters: out, sfx: line.sfxPath ?? line.sfx };
   });
@@ -125,16 +124,16 @@ export function evaluateStagePosition(beat: DirectedBeat, character: string, fra
   const cue = beat.characters.find((item) => item.character === character);
   if (!cue || !cue.moving) return cue?.to ?? [0, 0, 0];
   const distance = Math.hypot(cue.to[0] - cue.from[0], cue.to[1] - cue.from[1], cue.to[2] - cue.from[2]);
-  const duration = Math.min(Math.max(18, Math.ceil(distance / 1.6 * 30)), Math.max(18, cue.endFrame - cue.startFrame));
+  const duration = Math.min(Math.max(18, Math.ceil(distance / 1.6 * 30)), Math.max(1, cue.endFrame - cue.startFrame));
   const p = Math.max(0, Math.min(1, (frame - cue.startFrame) / duration));
-  const eased = p * p * (3 - 2 * p);
+  const eased = p === 0 || p === 1 ? p : p < 0.25 ? p * 1.12 : 1 - Math.exp(-7 * (p - 0.25)) * (1 - p) * 0.12;
   return cue.from.map((v, i) => v + (cue.to[i] - v) * eased) as [number, number, number];
 }
 
 export function evaluateStageFacing(beat: DirectedBeat, character: string, frame: number): number {
   const cue = beat.characters.find((item) => item.character === character);
   if (!cue || !cue.moving) return 0;
-  const arrived = frame >= cue.startFrame + Math.min(Math.max(18, Math.ceil(Math.hypot(cue.to[0] - cue.from[0], cue.to[2] - cue.from[2]) / 1.6 * 30)), cue.endFrame - cue.startFrame);
+  const arrived = frame >= cue.startFrame + Math.min(Math.max(18, Math.ceil(Math.hypot(cue.to[0] - cue.from[0], cue.to[2] - cue.from[2]) / 1.6 * 30)), Math.max(1, cue.endFrame - cue.startFrame));
   if (arrived) return cue.lookAt === "camera" ? 0 : Math.atan2(cue.to[0] - cue.from[0], cue.to[2] - cue.from[2]);
   return Math.atan2(cue.to[0] - cue.from[0], cue.to[2] - cue.from[2]);
 }

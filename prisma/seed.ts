@@ -4,6 +4,19 @@ import path from "node:path";
 import { buildDefaultShotsFromLines } from "../src/lib/bible";
 import { SeriesBible, ScriptLine } from "../src/lib/schemas";
 import { buildVoiceTimingObject, estimateLineDuration } from "../src/lib/timing";
+import { AI_ROLES } from "../src/lib/ai/types";
+
+const defaultRolePrompts: Record<(typeof AI_ROLES)[number], string> = {
+  bibleWriter: "Create a complete Series Bible using the supplied concept and language. Return valid JSON only. Follow the supplied technical registry and make all content consistent with the input.",
+  characterDesigner: "Design one original character consistent with the supplied Series Bible. Return valid JSON only and use only technical registry values.",
+  setDesigner: "Design a voxel set consistent with the supplied Series Bible. Return valid JSON only and define useful named stagePoints.",
+  scriptwriter: "Write episode beats consistent with the supplied Series Bible and continuity. Return valid JSON only. All story content must follow world rules and neverDo.",
+  director: "Direct the supplied script using only characters, sets, stagePoints, and technical registry values provided in the input. Return valid JSON only.",
+  critic: "Critique the supplied episode against the Series Bible, rules, continuity and neverDo. Return valid JSON only.",
+  editor: "Convert the supplied edit request into the smallest valid JSON patch. Return JSON only.",
+  ideaGenerator: "Generate the requested original episode ideas following the supplied Series Bible, rules, continuity and neverDo. Return valid JSON only.",
+  outlineGenerator: "Generate the requested connected outlines following the supplied Series Bible, rules, continuity and neverDo. Return valid JSON only.",
+};
 
 const prisma = new PrismaClient();
 
@@ -35,15 +48,9 @@ function createSimpleWav(durationSec: number, freq: number): Buffer {
 }
 
 async function main() {
-  const existing = await prisma.series.findFirst({
-    where: { name: "Kampung Voxel" },
-  });
-
-  if (existing) {
-    console.log("Seed Kampung Voxel sudah ada, melewati.");
-    return;
+  for (const role of AI_ROLES) {
+    await prisma.promptPreset.upsert({ where: { id: `system-${role}` }, update: {}, create: { id: `system-${role}`, name: `System ${role}`, kind: "system", target: role, payload: defaultRolePrompts[role] } });
   }
-
   const bible: SeriesBible = {
     premise:
       "Kehidupan kocak Bimo dan Nara di Kampung Voxel saat benda-benda aneh mulai muncul tanpa izin.",
@@ -187,6 +194,57 @@ async function main() {
       },
     ],
   };
+
+  const warungBible: SeriesBible = {
+    ...bible,
+    premise: "Warung Pak Blokir: setiap barang murah punya hitungan dan cerita sendiri.",
+    world: { rules: ["Semua benda berbentuk voxel", "Harga tertulis tangan dan tidak berubah sendiri"], impossible: ["Barang tidak berpindah tanpa disentuh"], taboo: ["Tidak boleh menyalakan korek dekat barang mudah terbakar"] },
+    characters: [
+      { ...bible.characters[0], id: "pak-blokir", name: "Pak Blokir", role: "Pemilik warung", colorPrimary: "#92400E", colorHair: "#166534", accessory: "topi", proportions: { headScale: 1.28, bodyHeight: 1.1, limbLength: 0.9 } },
+      { ...bible.characters[1], id: "cubi", name: "Cubi", role: "Pelanggan cilik", colorPrimary: "#3B82F6", accessory: "topi", proportions: { headScale: 1.35, bodyHeight: 0.75, limbLength: 0.75 } },
+      { ...bible.characters[1], id: "bu-pixel", name: "Bu Pixel", role: "Pelanggan teliti", colorPrimary: "#EC4899", colorHair: "#DB2777", accessory: "topi", proportions: { headScale: 1.25, bodyHeight: 1, limbLength: 1 } },
+      { ...bible.characters[0], id: "tuan-creeper", name: "Tuan Creeper", role: "Pelanggan sopan", colorPrimary: "#22C55E", accessory: "none", proportions: { headScale: 1.35, bodyHeight: 1.05, limbLength: 0.95 } },
+      { ...bible.characters[1], id: "kambing-kubus", name: "Kambing Kubus", role: "Kambing penjaga", colorPrimary: "#E5E7EB", accessory: "none", proportions: { headScale: 1.1, bodyHeight: 0.8, limbLength: 0.8 } },
+    ],
+    sets: [{ id: "set-warung-pak-blokir", name: "Warung Pak Blokir", template: "desa", mood: "hangat dan ramai", lighting: "siang", palette: ["#92400E", "#166534", "#FACC15", "#3B82F6"], props: [{ id: "warung-main", kind: "warung", name: "Bangunan Warung Pak Blokir", position: [0, 0, 0], rotationY: 0, scale: 1 }] }],
+    visualStyle: { ...bible.visualStyle, palette: ["#92400E", "#166534", "#FACC15", "#3B82F6"], accentColor: "#FACC15" },
+    continuity: { summary: "Warung baru buka; sepuluh batang korek sedang dihitung.", activeCliffhanger: "", threads: [], characterStates: {} },
+    neverDo: ["Jangan mengubah harga barang tanpa sebab", "Jangan membuat Tuan Creeper kasar", "Jangan ada api dekat barang mudah terbakar"],
+  };
+
+  const existingWarung = await prisma.series.findFirst({ where: { name: "Warung Pak Blokir" } });
+  const warungSeries = existingWarung
+    ? await prisma.series.update({ where: { id: existingWarung.id }, data: { bible: warungBible, visualStyle: "voxel-3d" } })
+    : await prisma.series.create({ data: { name: "Warung Pak Blokir", theme: "Komedi voxel di warung kampung", audience: "umum", tone: "lucu", language: "id-ID", visualStyle: "voxel-3d", bible: warungBible, bibleVersion: 1 } });
+
+  const korekLines: ScriptLine[] = [
+    { id: "korek-1", beat: "hook", speaker: "Pak Blokir", text: "Tuan Creeper membanting 10 koin kubus ke etalase: Pak, korek sepuluh!", emotion: "kaget", action: "slam_table", prop: "koin", sfx: "tink", durationSec: 2.8, setId: "set-warung-pak-blokir", moveTo: "counter" },
+    { id: "korek-2", beat: "setup", speaker: "Cubi", text: "Aku beli satu saja, Pak!", emotion: "senang", action: "talk", durationSec: 2.1, setId: "set-warung-pak-blokir", moveTo: "pintu", lookAt: "Pak Blokir" },
+    { id: "korek-3", beat: "konflik", speaker: "Pak Blokir", text: "Tadi sepuluh, sekarang kok tinggal sembilan?", emotion: "curiga", action: "think", prop: "korek", durationSec: 2.5, setId: "set-warung-pak-blokir", lookAt: "Cubi" },
+    { id: "korek-4", beat: "twist", speaker: "Cubi", text: "Yang satu kupakai buat nyalain lilin kue!", emotion: "kaget", action: "surprised", prop: "kue dan lilin", durationSec: 2.4, setId: "set-warung-pak-blokir", lookAt: "Pak Blokir" },
+    { id: "korek-5", beat: "payoff", speaker: "Pak Blokir", text: "Berarti tinggal sembilan, kuenya gratis!", emotion: "senang", action: "laugh", durationSec: 2.5, setId: "set-warung-pak-blokir", lookAt: "camera" },
+  ];
+  const korekTiming = buildVoiceTimingObject({ lines: korekLines, audioDurations: {}, fps: 30 });
+  const korekShots = buildDefaultShotsFromLines(korekLines, korekTiming.voiceTiming.lineTimings);
+  const existingKorek = await prisma.episode.findFirst({ where: { seriesId: warungSeries.id, title: "Korek Sepuluh Biji" } });
+  if (existingKorek) {
+    await prisma.episode.update({ where: { id: existingKorek.id }, data: {
+      status: "ready", hook: korekLines[0].text, twist: korekLines[3].text, cliffhanger: "Besok ada yang beli sebelas batang.",
+      script: { lines: korekLines, setId: "set-warung-pak-blokir" }, voiceTiming: korekTiming.voiceTiming,
+      shots: { shots: korekShots }, durationSec: korekTiming.durationSec, totalFrames: korekTiming.totalFrames,
+    } });
+  } else await prisma.episode.create({ data: {
+    seriesId: warungSeries.id, number: 1, title: "Korek Sepuluh Biji", status: "ready",
+    hook: korekLines[0].text, twist: korekLines[3].text, cliffhanger: "Besok ada yang beli sebelas batang.",
+    script: { lines: korekLines, setId: "set-warung-pak-blokir" }, voiceTiming: korekTiming.voiceTiming,
+    shots: { shots: korekShots }, durationSec: korekTiming.durationSec, totalFrames: korekTiming.totalFrames,
+  } });
+
+  const existing = await prisma.series.findFirst({ where: { name: "Kampung Voxel" } });
+  if (existing) {
+    console.log("Seed Warung Pak Blokir diperbarui; Kampung Voxel sudah ada, melewati.");
+    return;
+  }
 
   const series = await prisma.series.create({
     data: {

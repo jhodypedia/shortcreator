@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ActionTypeSchema, AccessoryTypeSchema, BODY_TYPES, LIGHTING_TYPES, SET_TEMPLATES } from "./technical-registry";
 
 export const EmotionSchema = z.enum([
   "netral",
@@ -18,11 +19,8 @@ export const BeatTypeSchema = z.enum([
   "payoff",
 ]);
 
-export const ActionTypeSchema = z.enum([
-  "idle", "walk", "talk", "point", "wave", "nod", "shake_head", "surprised",
-  "laugh", "slam_table", "drop_item", "pick_up", "hand_over", "think", "angry", "turn_to",
-]);
-export const StagePositionSchema = z.enum(["counter", "pintu", "tengah_jalan", "belakang_warung"]);
+export { ActionTypeSchema };
+export const StagePositionSchema = z.string().min(1);
 export const ReactionSchema = z.object({
   character: z.string().default(""),
   action: ActionTypeSchema.default("surprised"),
@@ -40,12 +38,7 @@ export const ShotTypeSchema = z.enum([
   "pan",
 ]);
 
-export const LightingPresetSchema = z.enum([
-  "siang",
-  "senja",
-  "malam",
-  "horror",
-]);
+export const LightingPresetSchema = z.enum(LIGHTING_TYPES);
 
 export const CharacterSchema = z.object({
   id: z.string().min(1, "ID karakter wajib diisi"),
@@ -69,10 +62,11 @@ export const CharacterSchema = z.object({
     })
     .default({ headScale: 1, bodyHeight: 1, limbLength: 1 }),
   voiceId: z.string().min(1, "Suara (voiceId) karakter wajib dipilih"),
+  bodyType: z.enum(BODY_TYPES).default("human").optional(),
   voicePitch: z.number().min(-20).max(20).default(0),
   voiceSpeed: z.number().min(0.6).max(1.6).default(1),
   expression: EmotionSchema.default("netral"),
-  accessory: z.enum(["none", "topi", "kacamata", "syal", "mahkota"]).default("none"),
+  accessory: AccessoryTypeSchema.default("none"),
   catchphrase: z.string().default(""),
   forbidden: z.string().default(""),
 });
@@ -91,13 +85,12 @@ export const PropPlacementSchema = z.object({
 export const SetSchema = z.object({
   id: z.string().min(1, "ID set wajib diisi"),
   name: z.string().min(1, "Nama set wajib diisi"),
-  template: z
-    .enum(["desa", "hutan", "gua", "rumah", "arena", "pantai", "custom"])
-    .default("desa"),
+  template: z.enum(SET_TEMPLATES).default("custom"),
   mood: z.string().min(1, "Mood set wajib diisi"),
   lighting: LightingPresetSchema,
   palette: z.array(z.string().min(1)).min(1, "Minimal 1 warna palette set"),
   props: z.array(PropPlacementSchema).default([]),
+  stagePoints: z.record(z.string(), z.tuple([z.number(), z.number(), z.number()])).default({}).optional(),
 });
 
 export const SeriesBibleChangelogSchema = z.object({
@@ -116,12 +109,8 @@ export const SeriesBibleSchema = z.object({
     impossible: z.array(z.string()).default([]),
     taboo: z.array(z.string()).default([]),
   }),
-  characters: z
-    .array(CharacterSchema)
-    .min(1, "Series Bible wajib memiliki minimal 1 karakter"),
-  sets: z
-    .array(SetSchema)
-    .min(1, "Series Bible wajib memiliki minimal 1 set/lokasi"),
+  characters: z.array(CharacterSchema),
+  sets: z.array(SetSchema),
   visualStyle: z.object({
     palette: z.array(z.string()).min(1, "Minimal 1 warna palette global"),
     captionFont: z.string().default("Inter"),

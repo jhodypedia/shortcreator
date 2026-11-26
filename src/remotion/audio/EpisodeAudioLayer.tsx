@@ -94,11 +94,11 @@ export const EpisodeAudioLayer: React.FC<{
           );
         })}
       {includeSfx && actionCues.map((cue, idx) => {
-        // Only resolve an explicitly supplied audio asset. Inferring filenames from
-        // action names caused 404s when optional SFX files were not installed.
         const src = cue.sfx ? resolveAudioSrc(cue.sfx, audioBaseUrl) : "";
-        if (!src) return null;
-        return <Sequence key={`action-sfx-${idx}`} from={Math.max(0, cue.frame)}><Audio src={src} volume={0.65} /></Sequence>;
+        if (src) return <Sequence key={`action-sfx-${idx}`} from={Math.max(0, cue.frame)}><Audio src={src} volume={0.65} /></Sequence>;
+        const tone = cue.sfx?.toLowerCase().includes("tink") ? 880 : cue.action === "slam_table" ? 90 : cue.action === "walk" ? 150 : cue.action === "drop_item" ? 240 : cue.action === "pick_up" || cue.action === "hand_over" ? 880 : cue.action === "laugh" ? 430 : 660;
+        const asset = `/sfx/action-${tone}.wav`;
+        return <Sequence key={`generated-action-sfx-${idx}`} from={Math.max(0, cue.frame)}><Audio src={staticFile(asset)} volume={cue.action === "slam_table" ? 0.42 : 0.18} /></Sequence>;
       })}
     </>
   );

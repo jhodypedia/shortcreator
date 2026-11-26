@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Save, Trash2, Upload } from "lucide-react";
+import { Plus, Save, Trash2, Upload, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { SeriesBible, SetConfig } from "@/lib/schemas";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,9 @@ export function SetBuilderClient({
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [customProps, setCustomProps] = useState(uploadedProps);
   const [saving, setSaving] = useState(false);
+  const [aiDescription, setAiDescription] = useState("");
+  const [aiCommand, setAiCommand] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
 
   const activeSet = sets[selectedIdx] ?? sets[0];
 
@@ -64,6 +67,22 @@ export function SetBuilderClient({
       prev.map((s, idx) => (idx === selectedIdx ? { ...s, ...patch } : s))
     );
   };
+
+  async function generateSet(description: string, edit = false) {
+    setAiBusy(true);
+    try {
+      const res = await fetch("/api/ai/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "setDesigner", input: { description: `${description}${edit && activeSet ? `; modifikasi set yang ada bernama ${activeSet.name} dengan properti: ${JSON.stringify(activeSet)}` : ""}`, bible: initialBible } }) });
+      const reader = res.body?.getReader(); if (!reader) throw new Error("SSE tidak tersedia");
+      const decoder = new TextDecoder(); let buffer = ""; let spec: Record<string, unknown> | null = null;
+      while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const chunks = buffer.split("\n\n"); buffer = chunks.pop() || ""; for (const chunk of chunks) { const line = chunk.split("\n").find((item) => item.startsWith("data: ")); if (!line) continue; const payload = JSON.parse(line.slice(6)); if (chunk.includes("event: result")) spec = payload.data; if (chunk.includes("event: error")) throw new Error(payload.error); } }
+      if (!spec) throw new Error("AI tidak menghasilkan set");
+      const lighting = spec.timeOfDay === "malam" ? "malam" : spec.timeOfDay === "sore" ? "senja" : "siang";
+      const next: SetConfig = { id: `set-ai-${sets.length + 1}`, name: String(spec.name), template: "desa", mood: `${spec.timeOfDay} · ${spec.sky}`, lighting, palette: (spec.objects as Array<{color:string}>).slice(0, 5).map((obj)=>obj.color), props: (spec.objects as Array<{type:string;position:number[];size:number[];color:string;rotation:number[]}>).map((obj, i)=>({ id:`ai-prop-${i+1}`, kind:obj.type, name:obj.type, position:[obj.position[0], obj.position[1], obj.position[2]] as [number,number,number], rotationY:obj.rotation[1], scale:Math.max(...obj.size) })) };
+      const updated = edit && selectedIdx >= 0 ? sets.map((item, i) => i === selectedIdx ? { ...next, id: item.id } : item) : [...sets, next];
+      setSets(updated); if (!edit) setSelectedIdx(updated.length - 1); toast.success("Set dibuat dengan AI");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Gagal membuat set"); }
+    finally { setAiBusy(false); }
+  }
 
   async function handleUploadProp(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -164,6 +183,8 @@ export function SetBuilderClient({
           <Save className="size-4" /> {saving ? "Menyimpan..." : "Simpan Set & Komponen"}
         </Button>
       </div>
+
+      <Card><CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="size-4"/>Set / Scene oleh AI</CardTitle><CardDescription>Set disimpan sebagai set tambahan dan dapat dipilih per beat.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2"><Input placeholder="warung kelontong desa voxel sore hari" aria-label="Deskripsi set AI" value={aiDescription} onChange={(e)=>setAiDescription(e.target.value)} className="min-w-60 flex-1"/><Button disabled={aiBusy||!aiDescription.trim()} onClick={()=>generateSet(aiDescription)}><Sparkles className="size-4"/>{aiBusy?"Membuat…":"Buat set dengan AI"}</Button><Input placeholder="ubah latar jadi malam" aria-label="Perintah ubah set" value={aiCommand} onChange={(e)=>setAiCommand(e.target.value)}/><Button variant="secondary" disabled={aiBusy||!aiCommand.trim()} onClick={()=>generateSet(aiCommand,true)}>Ubah dengan perintah</Button></CardContent></Card>
 
       {activeSet && (
         <div className="grid gap-6 lg:grid-cols-12">
