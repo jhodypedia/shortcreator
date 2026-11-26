@@ -16,6 +16,18 @@ export function SaveIndicator({ state }: { state: "saved" | "saving" | "error" }
   return <span role="status" className="inline-flex min-h-9 items-center gap-2 text-xs text-muted-foreground"><Icon className={cn("size-3.5", state === "saved" && "text-primary", state === "saving" && "animate-spin", state === "error" && "text-destructive")} />{label}</span>;
 }
 
+export function Sparkline({ values, className = "", tone = "var(--studio-emerald)" }: { values: number[]; className?: string; tone?: string }) {
+  const points = values.length > 1 ? values : [0, ...values, 0];
+  const max = Math.max(...points, 1);
+  const min = Math.min(...points, 0);
+  const path = points.map((value, index) => `${index ? "L" : "M"}${(index / (points.length - 1) * 100).toFixed(1)},${(28 - (value - min) / (max - min || 1) * 24).toFixed(1)}`).join(" ");
+  return <svg aria-hidden="true" viewBox="0 0 100 32" preserveAspectRatio="none" className={cn("h-8 w-24", className)}><path d={path} fill="none" stroke={tone} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+export function Stepper({ steps, current, className }: { steps: string[]; current: number; className?: string }) {
+  return <ol className={cn("flex min-w-0 items-center overflow-x-auto pb-1", className)} aria-label="Tahapan produksi">{steps.map((step, index) => <li key={step} aria-current={index === current ? "step" : undefined} className="flex min-w-20 flex-1 items-center"><div className="flex min-w-0 flex-col items-center gap-1"><span className={cn("grid size-8 place-items-center rounded-full border text-xs font-semibold", index < current && "border-primary bg-primary text-primary-foreground", index === current && "border-primary text-primary", index > current && "border-border text-muted-foreground")}>{index < current ? <Check className="size-4" /> : index + 1}</span><span className="max-w-full truncate text-[10px] text-muted-foreground sm:text-xs">{step}</span></div>{index < steps.length - 1 && <span aria-hidden="true" className={cn("mx-1 h-px min-w-2 flex-1", index < current ? "bg-primary" : "bg-border")} />}</li>)}</ol>;
+}
+
 export function ProgressRing({ value, size = 48, stroke = 4, className }: { value: number; size?: number; stroke?: number; className?: string }) {
   const radius = (size - stroke) / 2; const circumference = radius * 2 * Math.PI; const progress = Math.max(0, Math.min(100, value));
   return <div className={cn("relative inline-grid shrink-0 place-items-center", className)} style={{ width: size, height: size }} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>

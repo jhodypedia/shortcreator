@@ -21,7 +21,6 @@ export function SeriesHeaderNav({
 }) {
   const pathname = usePathname();
   const tabs = [
-    { href: `/series/${seriesId}`, label: "Ringkasan", icon: BookOpen, exact: true },
     { href: `/series/${seriesId}`, label: "Panduan", icon: BookOpen, exact: true },
     { href: `/series/${seriesId}/episodes`, label: "Episode", icon: Film },
     { href: `/series/${seriesId}/characters`, label: "Karakter", icon: Users },
@@ -30,7 +29,7 @@ export function SeriesHeaderNav({
   ];
 
   return (
-    <div className="studio-card overflow-hidden">
+    <div className="studio-card sticky top-2 z-30 overflow-hidden">
       <div className="h-0.5 w-full" style={{ backgroundColor: accentColor }} aria-hidden="true" />
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <Link

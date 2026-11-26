@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SeriesHeaderNav } from "@/components/series-nav";
 import { StatusBadge } from "@/components/status-badge";
+import { Stepper } from "@/components/ui/studio-primitives";
 
 interface EpRow {
   id: string;
@@ -154,6 +155,7 @@ export function SeriesEpisodesClient({
         accentColor={bible.visualStyle.accentColor}
         emoji={bible.visualStyle.emoji}
       />
+      <div className="studio-card p-3 sm:p-4"><Stepper steps={["Naskah", "Timing", "Siap", "Render", "Review", "Selesai"]} current={Math.max(0, Math.min(5, episodes.length ? ["draft", "script", "timing", "ready", "rendering", "review", "done"].indexOf(episodes.at(-1)?.status ?? "draft") - 1 : 0))} /></div>
 
       {/* Bar Aksi Utama */}
       <div className="flex flex-wrap items-center justify-between gap-2">
