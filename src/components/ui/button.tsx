@@ -2,9 +2,10 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 import { LoaderCircle } from "lucide-react"
+import { isMotionReduced } from "@/lib/device-performance"
 
 const buttonVariants = cva(
-  "studio-button group/button inline-flex shrink-0 items-center justify-center rounded-[14px] border border-transparent text-[14px] font-semibold whitespace-nowrap transition-[transform,background-color,border-color,color,box-shadow] duration-[var(--studio-motion-normal)] ease-[var(--studio-ease)] outline-none select-none hover:brightness-[1.08] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:scale-[.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "studio-button ripple-button group/button inline-flex shrink-0 items-center justify-center rounded-[14px] border border-transparent text-[14px] font-semibold whitespace-nowrap transition-[transform,background-color,border-color,color] duration-[var(--studio-motion-normal)] ease-[var(--studio-ease)] outline-none select-none hover:brightness-[1.08] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:scale-[.98] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -39,12 +40,28 @@ function Button({
   size = "default",
   loading = false,
   children,
+  onPointerMove,
+  onPointerLeave,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { loading?: boolean }) {
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, className }), "magnetic-button")}
+      onPointerMove={(event) => {
+        onPointerMove?.(event);
+        if (event.pointerType !== "mouse" || !window.matchMedia("(pointer:fine)").matches || isMotionReduced()) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = (event.clientX - rect.left - rect.width / 2) / rect.width;
+        const y = (event.clientY - rect.top - rect.height / 2) / rect.height;
+        event.currentTarget.style.setProperty("--magnetic-x", `${x * 3}px`);
+        event.currentTarget.style.setProperty("--magnetic-y", `${y * 3}px`);
+      }}
+      onPointerLeave={(event) => {
+        onPointerLeave?.(event);
+        event.currentTarget.style.setProperty("--magnetic-x", "0px");
+        event.currentTarget.style.setProperty("--magnetic-y", "0px");
+      }}
       disabled={loading || props.disabled}
       {...props}
     >

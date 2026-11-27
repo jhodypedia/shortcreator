@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft, BookOpen, Boxes, Film, Layers, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { FloatingTabList } from "@/components/ui/studio-primitives";
+import { navigateWithViewTransition } from "@/lib/view-transitions";
 
 export function SeriesHeaderNav({
   seriesId,
@@ -39,14 +40,14 @@ export function SeriesHeaderNav({
         >
           <ArrowLeft className="size-3.5" />
         </Link>
-        <span className="text-base leading-none" aria-hidden="true">{emoji}</span>
+        <span className="series-shared-image text-base leading-none" aria-hidden="true">{emoji}</span>
         <h1 className="min-w-0 truncate !text-lg !font-semibold">{seriesName}</h1>
         <Badge variant="outline" style={{ borderColor: `${accentColor}66`, color: accentColor }}>
           Bible v{bibleVersion}
         </Badge>
       </div>
 
-      <div className="sticky top-0 z-30 border-t border-border bg-card/95 p-2 backdrop-blur-xl"><FloatingTabList items={tabs.map((tab) => ({ value: tab.label, label: tab.label }))} value={tabs.find((tab) => tab.exact ? pathname === tab.href : pathname.startsWith(tab.href))?.label ?? "Ringkasan"} onValueChange={(label) => { const tab = tabs.find((item) => item.label === label); if (tab) window.location.href = tab.href; }}/></div>
+      <div className="series-sticky-tabs sticky top-0 z-30 border-t border-border bg-card/95 p-2 backdrop-blur-xl"><FloatingTabList items={tabs.map((tab) => ({ value: tab.label, label: tab.label }))} value={tabs.find((tab) => tab.exact ? pathname === tab.href : pathname.startsWith(tab.href))?.label ?? "Panduan"} onValueChange={(label) => { const tab = tabs.find((item) => item.label === label); if (tab) navigateWithViewTransition(tab.href); }}/></div>
     </div>
   );
 }

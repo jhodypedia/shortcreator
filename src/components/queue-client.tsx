@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { animate, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -56,6 +57,28 @@ function formatEta(seconds: number | null) {
   return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+function celebrateRender() {
+  if (document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches || !window.matchMedia("(pointer:fine)").matches) return;
+  const canvas = document.createElement("canvas");
+  canvas.setAttribute("aria-hidden", "true");
+  Object.assign(canvas.style, { position: "fixed", inset: "0", width: "100vw", height: "100dvh", zIndex: "100", pointerEvents: "none" });
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) { canvas.remove(); return; }
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  canvas.width = Math.round(window.innerWidth * dpr); canvas.height = Math.round(window.innerHeight * dpr);
+  ctx.scale(dpr, dpr);
+  const colors = ["#34d399", "#2dd4bf", "#fbbf24"];
+  const particles = Array.from({ length: 26 }, (_, i) => ({ x: window.innerWidth * (.35 + Math.random() * .3), y: window.innerHeight * .38, vx: (Math.random() - .5) * 5, vy: -2 - Math.random() * 5, rotation: Math.random() * 3, color: colors[i % colors.length] }));
+  const start = performance.now();
+  const controls = animate(0, 1, { duration: .68, onUpdate: (progress) => {
+    if (document.hidden) return;
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    particles.forEach((particle) => { particle.x += particle.vx; particle.y += particle.vy; particle.vy += .16; particle.rotation += .08; ctx.save(); ctx.translate(particle.x, particle.y); ctx.rotate(particle.rotation); ctx.globalAlpha = 1 - progress; ctx.fillStyle = particle.color; ctx.fillRect(-3, -4, 6, 8); ctx.restore(); });
+    if (performance.now() - start >= 700) { controls.stop(); canvas.remove(); }
+  }, onComplete: () => canvas.remove() });
+}
+
 export function QueueClient({
   initialItems,
   initialControl,
@@ -63,7 +86,9 @@ export function QueueClient({
   initialItems: QueueRow[];
   initialControl: ControlState;
 }) {
+  const reduceMotion = useReducedMotion();
   const [items, setItems] = useState<QueueRow[]>(initialItems);
+  const itemsRef = useRef<QueueRow[]>(initialItems);
   const [control, setControl] = useState<ControlState>(initialControl);
   const [busy, setBusy] = useState(false);
 
@@ -72,7 +97,11 @@ export function QueueClient({
       const res = await fetch("/api/queue/status", { cache: "no-store" });
       if (!res.ok) return;
       const json = await res.json();
-      setItems(json.items ?? []);
+      const nextItems = (json.items ?? []) as QueueRow[];
+      const completed = nextItems.some((next) => next.status === "done" && itemsRef.current.some((prev) => prev.id === next.id && prev.status === "rendering"));
+      setItems(nextItems);
+      itemsRef.current = nextItems;
+      if (completed && !reduceMotion) celebrateRender();
       setControl(json.control ?? { isPaused: false, stopReason: null });
     } catch {
       // abaikan saat polling sementara gagal
@@ -102,7 +131,8 @@ export function QueueClient({
       if (id) clearInterval(id);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  // Poll stays stable for the component lifetime; reading latest rows from a ref avoids restarting timers per update.
+  }, [reduceMotion]);
 
   async function sendControl(action: "pause-all" | "resume-all" | "cancel-all" | "run-next") {
     setBusy(true);
