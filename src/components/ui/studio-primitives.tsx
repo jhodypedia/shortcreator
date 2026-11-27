@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { Sparkles, Check, LoaderCircle } from "lucide-react";
 import { cn } from "cn";
 import { Drawer } from "vaul";
+import { isMotionReduced, subscribeMotionPreference } from "@/lib/device-performance";
 
 export function IconButton({ label, children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return <button aria-label={label} title={label} className={cn("studio-button focus-ring inline-flex size-11 shrink-0 items-center justify-center border border-border bg-card text-foreground hover:border-primary/60", className)} {...props}>{children}</button>;
@@ -30,8 +31,9 @@ export function Stepper({ steps, current, className }: { steps: string[]; curren
 
 export function ProgressRing({ value, size = 48, stroke = 4, className }: { value: number; size?: number; stroke?: number; className?: string }) {
   const radius = (size - stroke) / 2; const circumference = radius * 2 * Math.PI; const progress = Math.max(0, Math.min(100, value));
+  const reduced = React.useSyncExternalStore(subscribeMotionPreference, isMotionReduced, () => true);
   return <div className={cn("relative inline-grid shrink-0 place-items-center", className)} style={{ width: size, height: size }} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
-    <svg width={size} height={size} className="-rotate-90"><circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--studio-border)" strokeWidth={stroke}/><motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--studio-emerald)" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} initial={{ strokeDashoffset: circumference }} animate={{ strokeDashoffset: circumference * (1 - progress / 100) }} transition={{ duration: .32, ease: [.2,.75,.25,1] }}/></svg>
+    <svg width={size} height={size} className="-rotate-90"><circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--studio-border)" strokeWidth={stroke}/><motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--studio-emerald)" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} initial={false} animate={{ strokeDashoffset: circumference * (1 - progress / 100) }} transition={{ duration: reduced ? 0 : .28, ease: [.2,.75,.25,1] }}/></svg>
     <span className="absolute text-[10px] font-semibold tabular-nums">{Math.round(progress)}%</span>
   </div>;
 }
@@ -63,6 +65,7 @@ export function AiFillButton({ onClick, label = "Isi dengan AI" }: { onClick?: (
 
 export function FloatingTabList({ items, value, onValueChange }: { items: Array<{ value: string; label: string }>; value: string; onValueChange: (value: string) => void }) {
   const container = React.useRef<HTMLDivElement>(null); const buttons = React.useRef(new Map<string, HTMLButtonElement>());
-  React.useEffect(() => { const selected = buttons.current.get(value); if (!selected || !container.current) return; const node = container.current; const target = selected.offsetLeft - (node.clientWidth - selected.offsetWidth) / 2; node.scrollTo({ left: target, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }, [value]);
-  return <div ref={container} className="mobile-scroll-tabs relative flex w-full gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-1.5">{items.map((item) => <button ref={(node) => { if (node) buttons.current.set(item.value, node); else buttons.current.delete(item.value); }} key={item.value} aria-pressed={value === item.value} onClick={() => onValueChange(item.value)} className={cn("relative z-0 min-h-11 shrink-0 snap-center rounded-xl px-4 text-sm font-medium text-muted-foreground transition-colors", value === item.value && "text-foreground")}><span className="relative z-10">{item.label}</span>{value === item.value && <motion.span layoutId="studio-tab-indicator" className="absolute inset-0 -z-0 rounded-xl bg-primary/15" transition={{ type: "spring", stiffness: 420, damping: 34 }}/>}</button>)}</div>;
+  const reduced = React.useSyncExternalStore(subscribeMotionPreference, isMotionReduced, () => true);
+  React.useEffect(() => { const selected = buttons.current.get(value); if (!selected || !container.current) return; const node = container.current; const target = selected.offsetLeft - (node.clientWidth - selected.offsetWidth) / 2; node.scrollTo({ left: target, behavior: reduced ? "auto" : "smooth" }); }, [value, reduced]);
+  return <div ref={container} className="mobile-scroll-tabs relative flex w-full gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-1.5">{items.map((item) => <button ref={(node) => { if (node) buttons.current.set(item.value, node); else buttons.current.delete(item.value); }} key={item.value} aria-pressed={value === item.value} onClick={() => onValueChange(item.value)} className={cn("pressable relative z-0 min-h-11 shrink-0 snap-center rounded-xl px-4 text-sm font-medium text-muted-foreground transition-colors", value === item.value && "text-foreground")}><span className="relative z-10">{item.label}</span>{value === item.value && <motion.span layoutId="studio-tab-indicator" className="absolute inset-0 -z-0 rounded-xl bg-primary/15" transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }}/>}</button>)}</div>;
 }

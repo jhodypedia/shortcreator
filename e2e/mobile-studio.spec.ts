@@ -12,3 +12,14 @@ test("responsive studio entry renders with mobile-safe controls", async ({ page 
     expect(overflow, `horizontal overflow at ${width}px`).toBe(false);
   }
 });
+
+test("desktop/mobile viewport screenshots have no horizontal overflow", async ({ page }) => {
+  await page.goto("/setup");
+  for (const width of [360, 390, 768, 1280, 1536]) {
+    const height = width <= 390 ? 844 : width === 768 ? 1024 : 900;
+    await page.setViewportSize({ width, height });
+    await expect(page.getByRole("heading", { name: "Siapkan akun admin" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `horizontal overflow at ${width}px`).toBe(true);
+    await page.screenshot({ path: `test-results/screens/setup-${width}x${height}.png`, fullPage: false });
+  }
+});

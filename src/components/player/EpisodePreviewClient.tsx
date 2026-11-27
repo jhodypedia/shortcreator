@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Player, PlayerRef } from "@remotion/player";
+import type { PlayerRef } from "@remotion/player";
 import {
   ArrowRight,
   Clapperboard,
@@ -22,7 +23,8 @@ import {
   VoiceTiming,
 } from "@/lib/schemas";
 import { buildVoiceTimingObject } from "@/lib/timing";
-import { ShortComposition } from "@/remotion/ShortComposition";
+const Player = dynamic(() => import("@remotion/player").then((module) => module.Player), { ssr: false, loading: () => <div className="aspect-[9/16] w-full animate-pulse rounded-xl bg-secondary" /> });
+const ShortComposition = dynamic(() => import("@/remotion/ShortComposition").then((module) => module.ShortComposition), { ssr: false, loading: () => <div className="aspect-[9/16] w-full animate-pulse rounded-xl bg-secondary" /> });
 import { EpisodeHeaderNav } from "@/components/episode-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,9 +1,10 @@
 "use client";
 
 import { m } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "cn";
 import { studioMotion } from "@/components/motion-provider";
+import { isMotionReduced, subscribeMotionPreference } from "@/lib/device-performance";
 
 export function Reveal({
   children,
@@ -14,13 +15,23 @@ export function Reveal({
   className?: string;
   delay?: number;
 }) {
+  const reduced = useSyncExternalStore(subscribeMotionPreference, isMotionReduced, () => true);
+  const [visible, setVisible] = useState(false);
+  const element = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const node = element.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   return (
     <m.div
+      ref={element}
       className={className}
-      initial={studioMotion.variants.reveal.initial}
-      whileInView={studioMotion.variants.reveal.animate}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{ duration: studioMotion.duration.normal, delay, ease: studioMotion.ease }}
+      initial={reduced ? false : studioMotion.variants.reveal.initial}
+      animate={reduced || !visible ? { opacity: 1, y: 0 } : studioMotion.variants.reveal.animate}
+      transition={{ duration: reduced ? 0 : studioMotion.duration.normal, delay: reduced ? 0 : delay, ease: studioMotion.ease }}
     >
       {children}
     </m.div>
@@ -38,11 +49,22 @@ export function CountUp({
 }) {
   const [shown, setShown] = useState(0);
   const started = useRef(false);
+  const reduced = useSyncExternalStore(subscribeMotionPreference, isMotionReduced, () => true);
+  const [visible, setVisible] = useState(false);
+  const element = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const node = element.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (started.current) return;
+    if (!visible || document.hidden) return;
     started.current = true;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const duration = reduced || value === 0 ? 0 : studioMotion.duration.slow * 1000;
     const start = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
@@ -52,10 +74,10 @@ export function CountUp({
       if (progress < 1) frame = requestAnimationFrame(tick);
     });
     return () => cancelAnimationFrame(frame);
-  }, [value]);
+  }, [value, visible, reduced]);
 
   return (
-    <span className={cn("mono tabular-nums", className)}>
+    <span ref={element} className={cn("mono tabular-nums", className)}>
       {shown.toLocaleString("id-ID")}
       {suffix}
     </span>
@@ -93,10 +115,6 @@ export function Sparkline({
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        initial={{ pathLength: 0, opacity: 0.4 }}
-        whileInView={{ pathLength: 1, opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: studioMotion.duration.slow, ease: studioMotion.ease }}
       />
     </svg>
   );

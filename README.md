@@ -48,7 +48,15 @@ npm run worker
 
 Buka `/settings`:
 - **API Router (`9router`):** Pilih `9router (API Router)`, masukkan Base URL (mis. `http://localhost:20128/v1`), Model ID, dan API Key, lalu klik **Tes Koneksi 9router / AI**.
-- **TTS:** Pilih `Edge-TTS` (gratis untuk `id-ID`), `OpenAI TTS`, `ElevenLabs`, atau `Lokal / Upload Rekaman Sendiri`.
+- **TTS:** Pilih Edge-TTS, OpenAI Speech (`gpt-4o-mini-tts`), ElevenLabs, Google Cloud TTS, Azure Speech, atau upload rekaman. API key disimpan terenkripsi. Katalog suara provider aktif di-cache di SQLite dan dapat diperbarui dari Pengaturan.
+
+### Suara karakter & delivery
+
+Setiap karakter menyimpan voice profile di Series Bible (provider, voice ID, gaya bahasa natural, speed/pitch, rentang variasi, dan kebiasaan). Character Builder dapat mempratinjau suara; generator AI diberi katalog provider sebagai kandidat suara. Baris dialog menyimpan emosi, intensitas, pacing, jeda, emphasis dan nonverbal pada `delivery`; teks asli tetap dipakai untuk caption dan `spokenText` khusus TTS disiapkan role `ttsPrep`.
+
+Semua provider memakai kontrak `TtsProvider` di `src/lib/tts/`. Fitur ekspresi hanya dikirim jika didukung: OpenAI memakai instruksi natural (`gpt-4o-mini-tts`), ElevenLabs memakai voice settings dan konteks previous/next, Azure memakai SSML neural styles/prosody, Google SSML hanya pada suara yang mendukungnya (Chirp 3 HD tidak menerima SSML/rate/pitch), Edge-TTS memakai rate/pitch yang tersedia. Audio hasil melewati trim, compressor, loudnorm sekitar -16 LUFS dan limiter FFmpeg. Quality gate mengukur durasi, silence dan peak lalu maksimal 2 retry; error/fallback dicatat di ActivityLog dan response API. Audio disimpan memakai cache hash teks-ucap+voice+delivery+provider. Caption tetap menggunakan timing estimasi berbasis kata dari `timing.ts` sampai tersedia alignment akurat.
+
+Provider docs diverifikasi saat implementasi: [OpenAI Speech](https://platform.openai.com/docs/guides/text-to-speech), [ElevenLabs TTS](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [Google Cloud voices](https://cloud.google.com/text-to-speech/docs/voices) dan [synthesize](https://cloud.google.com/text-to-speech/docs/reference/rest/v1/text/synthesize), [Azure voices/SSML](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-voice) dan [REST API](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech).
 
 ---
 
@@ -85,6 +93,8 @@ Caption word-level ditampilkan di sekitar 70–78% tinggi frame, paling banyak d
 
 ## 6. UI Studio Kreator (mobile-first)
 
-Design tokens studio voxel ada terpusat di `src/app/design-tokens.css`: emerald sebagai aksi utama, kuning senja untuk highlight AI, radius 10–20px, serta tempo/easing animasi. Primitive mobile bersama ada di `src/components/ui/studio-primitives.tsx` (bottom sheet, tab geser, empty state, progress ring, tombol AI). Gunakan target sentuh minimal 44px, safe-area `safe-top`/`safe-bottom`, state focus-visible, dan animasikan hanya transform/opacity untuk interaksi umum. CSS mendukung `prefers-reduced-motion`. Hindari efek blur berlapis dan lazy-load/pratinjau 3D hanya saat dibutuhkan.
+Design tokens studio ada terpusat di `src/app/design-tokens.css`; primitive bersama di `src/components/ui/studio-primitives.tsx`. Untuk motion: gunakan `src/components/motion-provider.tsx` sebagai sumber durasi/easing, `Reveal` untuk list yang terlihat, dan `CountUp` untuk angka. Animasi hanya boleh mengubah `transform`/`opacity`; jangan animasikan blur, shadow, ukuran, atau layout. Loop dilarang untuk elemen di luar viewport dan seluruh efek harus berhenti saat tab tersembunyi. Aurora CSS hanya bergerak pada desktop dengan pointer halus; spotlight/press effects tidak mengubah layout. Preview Three.js memakai observer visibilitas, maksimal satu canvas aktif, `frameloop="demand"`, dan wajib dispose saat unmount. Player Remotion di-lazy-load.
+
+Preferensi **Mode hemat animasi** dapat diubah pada Pengaturan dan tersimpan lokal per perangkat. Otomatis menghormati `prefers-reduced-motion`, `saveData`, dan perangkat dengan paling banyak 4 logical cores. Lenis dimuat dinamis hanya untuk pointer desktop saat mode penuh. Pada viewport mobile, shell memakai warna solid dan hanya satu lapisan tetap boleh memakai backdrop-filter pada satu waktu. View Transitions API dipakai hanya bila tersedia pada pointer desktop dan motion tidak dikurangi; fallback adalah transisi opacity/transform ringan. Intro studio hanya sekali per session dan dilewati pada perangkat hemat daya.
 
 Tes browser mobile: `npm run test:e2e` (Playwright, viewport iPhone 390px). Screenshot baseline ada di `docs/screens/setup-390x844.png`.

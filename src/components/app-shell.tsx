@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ import {
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/studio-primitives";
+import { isMotionReduced, subscribeMotionPreference } from "@/lib/device-performance";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", short: "Monitor", icon: LayoutDashboard },
@@ -101,6 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   const current = NAV_ITEMS.find((item) => isActive(item.href));
+  const reducedMotion = useSyncExternalStore(subscribeMotionPreference, isMotionReduced, () => true);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -113,7 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden bg-background text-foreground">
       {/* Studio toolbar */}
-      <header className="safe-top flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/90 px-3 backdrop-blur-xl sm:px-4">
+      <header className="app-shell-header safe-top flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/90 px-3 backdrop-blur-xl sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <Link href="/" className="flex shrink-0 items-center gap-2" aria-label="Short Generator">
             <span aria-hidden="true" className="app-logo"><Clapperboard className="size-4" /></span>
@@ -218,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               aria-current={active ? "page" : undefined}
               className={cn("relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1 text-[10px] font-medium leading-tight transition-colors", active ? "text-primary" : "text-muted-foreground")}
             >
-              <motion.span animate={{ scale: active ? 1.12 : 1, y: active ? -1 : 0 }} transition={{ type: "spring", stiffness: 430, damping: 20 }}><Icon className="size-5 shrink-0" /></motion.span>
+              <motion.span animate={reducedMotion ? undefined : { scale: active ? 1.12 : 1, y: active ? -1 : 0 }} transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 430, damping: 20 }}><Icon className="size-5 shrink-0" /></motion.span>
               <span className="max-w-full truncate">{item.label}</span>
               {item.href === "/queue" && queueCount > 0 && <span className="absolute top-0.5 right-[calc(50%-19px)] min-w-4 rounded-full bg-amber-500 px-1 text-center text-[9px] font-bold leading-4 text-[#1b160a]">{queueCount > 9 ? "9+" : queueCount}</span>}
               {active && <span className="absolute top-0 h-0.5 w-6 rounded-b-sm bg-primary" aria-hidden="true" />}
@@ -227,12 +229,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
-      <button type="button" aria-label="Perintah AI" onClick={() => setMobileMenuOpen(true)} className="fixed right-4 bottom-[calc(86px+env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full border border-amber-300/50 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-xl transition-transform active:scale-95 md:hidden"><Sparkles className="size-6"/></button>
+      <button type="button" aria-label="Perintah AI" onClick={() => setMobileMenuOpen(true)} className="pressable fixed right-4 bottom-[calc(86px+env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full border border-amber-300/50 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-xl transition-transform active:scale-95 md:hidden"><Sparkles className="size-6"/></button>
 
       <BottomSheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} title="Aksi cepat" snap={0.62}>
         <div className="grid gap-2 pb-4">
           <button type="button" onClick={() => { setMobileMenuOpen(false); setSearchOpen(true); }} className="flex min-h-12 items-center gap-3 rounded-xl border border-border bg-background px-4 text-left"><Command className="size-4 text-primary"/>Cari halaman atau perintah</button>
-          <Link href="/series?new=1" onClick={() => setMobileMenuOpen(false)} className="flex min-h-12 items-center gap-3 rounded-xl border border-border bg-background px-4"><Sparkles className="size-4 text-primary"/>Buat video dengan AI</Link>
+          <Link href="/series?new=1" onClick={() => setMobileMenuOpen(false)} className="pressable flex min-h-12 items-center gap-3 rounded-xl border border-border bg-background px-4"><Sparkles className="size-4 text-primary"/>Buat video dengan AI</Link>
           <button type="button" onClick={toggleTheme} className="flex min-h-12 items-center gap-3 rounded-xl border border-border bg-background px-4 text-left"><SunMoon className="size-4 text-primary"/>Ganti ke tema {theme === "dark" ? "terang" : "gelap"}</button>
         </div>
       </BottomSheet>

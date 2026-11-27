@@ -68,7 +68,7 @@ export default async function DashboardPage() {
   const seriesCounts = seriesList.map((s) => s.episodes.length);
 
   return (
-    <div className="space-y-5">
+    <div className="studio-aurora grain-overlay space-y-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-primary">Studio kreator voxel</p>
@@ -221,7 +221,7 @@ export default async function DashboardPage() {
                 const seriesQueue = queueItems.filter((q) => q.episode.seriesId === s.id && q.status !== "failed").length;
                 return (
                     <Link key={s.id} href={`/series/${s.id}`} className="group flex min-h-[76px] items-center gap-3 px-4 py-3 transition-colors hover:bg-secondary">
-                      <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-[#0b0c0e] text-2xl transition-transform duration-200 group-hover:rotate-3 group-hover:scale-105">
+                      <div className="series-shared-image relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-[#0b0c0e] text-2xl transition-transform duration-200 group-hover:rotate-3 group-hover:scale-105">
                         <span className="absolute inset-x-0 top-0 h-0.5" style={{ backgroundColor: accent }} />
                         {bible?.visualStyle?.emoji || <Film className="size-4 text-muted-foreground" />}
                     </div>

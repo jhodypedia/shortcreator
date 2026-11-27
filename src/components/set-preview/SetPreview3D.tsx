@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { CharacterConfig, SetConfig } from "@/lib/schemas";
@@ -26,14 +26,18 @@ export function SetPreview3D({
 }) {
   const controlsRef = React.useRef<{ target: { x: number; y: number; z: number } } | null>(null);
   const cameraRef = React.useRef<{ position: { x: number; y: number; z: number } } | null>(null);
+  const host = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(false);
+  useEffect(() => { const node = host.current; if (!node) return; const observer = new IntersectionObserver(([entry]) => setActive(entry.isIntersecting)); observer.observe(node); return () => observer.disconnect(); }, []);
 
   return (
     <div className="space-y-2">
       <div
+        ref={host}
         className="relative w-full overflow-hidden rounded-lg border border-border bg-slate-950"
         style={{ height }}
       >
-        <Canvas
+        {active ? <Canvas
           frameloop="demand"
           shadows
           camera={{ position: cameraPosition, fov: 46 }}
@@ -60,7 +64,7 @@ export function SetPreview3D({
             enableZoom
             maxPolarAngle={Math.PI / 2 - 0.04}
           />
-        </Canvas>
+        </Canvas> : <div className="grid h-full place-items-center text-sm text-muted-foreground">Pratinjau 3D aktif saat terlihat</div>}
         <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[10px] text-zinc-200">
           {set.name} • {set.lighting}
         </div>

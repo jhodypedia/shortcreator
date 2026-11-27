@@ -253,7 +253,7 @@ export function SeriesListClient({
               const complete = s.episodes.filter((episode) => episode.status === "done").length;
               const characters = bible?.characters ?? [];
               return (
-                <div key={s.id} className={`studio-card touch-card relative min-w-0 overflow-hidden p-4 ${layout === "list" ? "sm:flex sm:items-center sm:gap-4" : ""}`} style={{ borderTopColor: accent }}>
+                <div key={s.id} className={`studio-card spotlight-card touch-card relative min-w-0 overflow-hidden p-4 ${layout === "list" ? "sm:flex sm:items-center sm:gap-4" : ""}`} style={{ borderTopColor: accent }} onPointerMove={(event) => { if (event.pointerType === "mouse" && window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) { const rect = event.currentTarget.getBoundingClientRect(); event.currentTarget.style.setProperty("--spot-x", `${event.clientX - rect.left}px`); event.currentTarget.style.setProperty("--spot-y", `${event.clientY - rect.top}px`); } }}>
                   <div aria-hidden="true" className="absolute inset-x-0 top-0 h-20 opacity-35" style={{ background: `linear-gradient(125deg, ${accent}55, transparent 72%)` }} />
                   <div className="relative flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2.5">

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { getMotionPreference, setMotionPreference, subscribeMotionPreference, type MotionPreference } from "@/lib/device-performance";
 
 export function SettingsClient({
   initialSettings,
@@ -32,6 +34,7 @@ export function SettingsClient({
   initialSettings: AppSettingsData;
 }) {
   const router = useRouter();
+  const motionPreference = useSyncExternalStore(subscribeMotionPreference, getMotionPreference, () => "system" as MotionPreference);
 
   // AI / 9router state
   const [aiProvider, setAiProvider] = useState<AiProviderType>(initialSettings.ai.provider);
@@ -51,6 +54,7 @@ export function SettingsClient({
 
   // TTS state
   const [ttsProvider, setTtsProvider] = useState<TtsProviderType>(initialSettings.tts.provider);
+  const [ttsModel, setTtsModel] = useState(initialSettings.tts.model);
   const [ttsApiKey, setTtsApiKey] = useState("");
   const [ttsKeyInfo, setTtsKeyInfo] = useState({
     has: initialSettings.tts.hasApiKey,
@@ -67,9 +71,14 @@ export function SettingsClient({
   const [height, setHeight] = useState(initialSettings.render.height);
   const [maxRetries, setMaxRetries] = useState(initialSettings.render.maxRetries);
   const [ffmpegPath, setFfmpegPath] = useState(initialSettings.render.ffmpegPath);
-  const [availableVoices, setAvailableVoices] = useState<Array<{ id: string; label: string }>>([]);
+  const [availableVoices, setAvailableVoices] = useState<Array<{ id: string; label: string; name?: string; language?: string; gender?: string; description?: string }>>([]);
+  const [ttsEndpoint, setTtsEndpoint] = useState(initialSettings.tts.endpoint);
+  const [testVoice, setTestVoice] = useState("");
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [testingTts, setTestingTts] = useState(false);
+  const [ttsAudioConfig, setTtsAudioConfig] = useState(initialSettings.tts.audio);
 
-  useEffect(() => { void fetch("/api/settings").then((res) => res.json()).then((json) => setAvailableVoices(json.voices ?? [])).catch(() => setAvailableVoices([])); }, [ttsProvider]);
+  useEffect(() => { void fetch("/api/settings").then((res) => res.json()).then((json) => { setAvailableVoices(json.voices ?? []); setTestVoice((current) => current || json.voices?.[0]?.id || ""); }).catch(() => setAvailableVoices([])); }, [ttsProvider]);
 
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -107,10 +116,12 @@ export function SettingsClient({
           },
           tts: {
             provider: ttsProvider,
-            model: initialSettings.tts.provider === ttsProvider ? undefined : initialSettings.ai.ttsModel,
+            model: ttsModel,
             defaultVoiceId,
             defaultSpeed,
             defaultPitch,
+            endpoint: ttsEndpoint,
+            audio: ttsAudioConfig,
             ...(ttsApiKey.trim() ? { apiKey: ttsApiKey.trim() } : {}),
             ...(clearTtsKey ? { clearApiKey: true } : {}),
           },
@@ -211,6 +222,14 @@ export function SettingsClient({
           <Save className="size-4" /> {saving ? "Menyimpan..." : "Simpan Semua Pengaturan"}
         </Button>
       </div>
+
+      <Card className="studio-card">
+        <CardHeader><CardTitle>Performa & gerakan</CardTitle><CardDescription>Efek visual memakai animasi kompositor (transform/opacity), pause saat tab tersembunyi, serta dikurangi otomatis di perangkat hemat daya.</CardDescription></CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><Label htmlFor="motion-saver">Mode hemat animasi</Label><p className="mt-1 text-xs text-muted-foreground">Mengurangi transisi, gerak dekoratif, dan reveal. Preferensi disimpan di perangkat ini.</p></div>
+          <div className="flex items-center gap-3"><span className="text-xs text-muted-foreground">{motionPreference === "system" ? "Otomatis" : motionPreference === "reduced" ? "Aktif" : "Nonaktif"}</span><Switch aria-label="Mode hemat animasi" checked={motionPreference === "reduced"} onCheckedChange={(checked) => { const next: MotionPreference = checked ? "reduced" : "full"; setMotionPreference(next); }} /></div>
+        </CardContent>
+      </Card>
 
       {/* Koneksi AI & 9router */}
       <Card className="border-primary/40">
@@ -407,20 +426,22 @@ export function SettingsClient({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="edge-tts">Edge-TTS (Gratis id-ID)</SelectItem>
-                  <SelectItem value="openai">OpenAI TTS</SelectItem>
+                  <SelectItem value="openai">OpenAI Speech</SelectItem>
                   <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                  <SelectItem value="google">Google Cloud TTS (Chirp 3 HD)</SelectItem>
+                  <SelectItem value="azure">Azure Neural / HD</SelectItem>
                   <SelectItem value="local">Lokal / Upload Rekaman Sendiri</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="tts-api-key" className="text-xs">API Key TTS (OpenAI / ElevenLabs)</Label>
+              <Label htmlFor="tts-api-key" className="text-xs">API Key TTS ({ttsProvider})</Label>
               <div className="flex gap-2">
                 <Input
                   id="tts-api-key"
                   type="password"
-                  placeholder={ttsKeyInfo.has ? "Key tersimpan..." : "Opsional untuk Edge-TTS"}
+                  placeholder={ttsKeyInfo.has ? "Key tersimpan..." : ttsProvider === "edge-tts" ? "Tidak perlu API key" : "API key provider"}
                   value={ttsApiKey}
                   onChange={(e) => setTtsApiKey(e.target.value)}
                 />
@@ -437,10 +458,14 @@ export function SettingsClient({
               </div>
             </div>
 
+            <div className="space-y-1"><Label htmlFor="tts-model" className="text-xs">Model ID (kosong = default provider)</Label><Input id="tts-model" value={ttsModel} onChange={(event) => setTtsModel(event.target.value)} placeholder={ttsProvider === "openai" ? "gpt-4o-mini-tts" : ttsProvider === "elevenlabs" ? "eleven_multilingual_v2" : ""} /></div>
+
+            {ttsProvider === "azure" && <div className="space-y-1"><Label htmlFor="tts-endpoint" className="text-xs">Azure Speech endpoint/resource URL</Label><Input id="tts-endpoint" placeholder="https://resource.cognitiveservices.azure.com" value={ttsEndpoint} onChange={(event) => setTtsEndpoint(event.target.value)} /></div>}
+
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-3 space-y-1 sm:col-span-1">
                 <Label htmlFor="tts-voice" className="text-xs">Voice Default</Label>
-                  <Select value={defaultVoiceId} onValueChange={(value) => setDefaultVoiceId(value ?? "")}>
+                  <Select value={defaultVoiceId} onValueChange={(value) => { setDefaultVoiceId(value ?? ""); setTestVoice(value ?? ""); }}>
                     <SelectTrigger id="tts-voice"><SelectValue /></SelectTrigger>
                     <SelectContent>{availableVoices.map((voice) => <SelectItem key={voice.id} value={voice.id}>{voice.label}</SelectItem>)}</SelectContent>
                   </Select>
@@ -465,6 +490,11 @@ export function SettingsClient({
                 />
               </div>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" disabled={testingTts || !testVoice} onClick={async () => { setTestingTts(true); try { const response = await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: ttsProvider, apiKey: ttsApiKey || undefined, endpoint: ttsEndpoint, voiceId: testVoice, text: "Hai! Aku senang sekali bisa bercerita bareng kamu hari ini.", emotion: "senang" }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error); setPreviewUrl(data.previewUrl); toast.success(`Tes ${ttsProvider} berhasil`); } catch (error) { toast.error(error instanceof Error ? error.message : "Tes TTS gagal"); } finally { setTestingTts(false); } }}>{testingTts ? "Menguji…" : "Uji suara provider"}</Button>
+              {previewUrl && <audio controls src={previewUrl} aria-label="Pratinjau suara" />}
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={ttsAudioConfig.trimSilence} onChange={(event) => setTtsAudioConfig((value) => ({ ...value, trimSilence: event.target.checked }))} />Trim hening</label><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={ttsAudioConfig.compressor} onChange={(event) => setTtsAudioConfig((value) => ({ ...value, compressor: event.target.checked }))} />Kompresor</label><label className="space-y-1 text-xs">Target LUFS<Input type="number" min={-24} max={-12} value={ttsAudioConfig.loudnessLufs} onChange={(event) => setTtsAudioConfig((value) => ({ ...value, loudnessLufs: Number(event.target.value) }))} /></label><label className="space-y-1 text-xs">Sample rate<Select value={String(ttsAudioConfig.sampleRate)} onValueChange={(value) => setTtsAudioConfig((current) => ({ ...current, sampleRate: Number(value) as 44100 | 48000 }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="44100">44.1 kHz</SelectItem><SelectItem value="48000">48 kHz</SelectItem></SelectContent></Select></label></div>
           </CardContent>
         </Card>
 

@@ -25,16 +25,14 @@ export function Progress({
         data-slot="progress-indicator"
         data-complete={isComplete || undefined}
         className={cn(
-          "relative h-full rounded-full transition-[width] duration-[var(--studio-motion-slow)]",
-          isActive
-            ? "bg-[linear-gradient(90deg,var(--primary),#34d399,var(--primary))] bg-[length:200%_100%] animate-[shimmer_1.8s_linear_infinite]"
-            : "bg-primary shadow-[0_0_12px_rgb(16_185_129_/_0.35)]",
+          "relative h-full origin-left rounded-full transition-transform duration-300 ease-out",
+          isActive ? "bg-[linear-gradient(90deg,var(--primary),var(--studio-teal))]" : "bg-primary",
         )}
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(pct)}
-        style={{ width: `${pct}%` }}
+        style={{ width: "100%", transform: `scaleX(${pct / 100})`, transformOrigin: "left" }}
       />
     </div>
   );
