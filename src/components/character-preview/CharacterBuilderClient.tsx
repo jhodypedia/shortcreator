@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Plus, Save, Volume2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -16,9 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CharacterPreview3D } from "./CharacterPreview3D";
+const CharacterPreview3D = dynamic(() => import("./CharacterPreview3D").then((module) => module.CharacterPreview3D), { ssr: false, loading: () => <div className="grid h-[220px] place-items-center rounded-xl border border-border bg-secondary text-sm text-muted-foreground">Memuat pratinjau 3D…</div> });
 import { SeriesHeaderNav } from "@/components/series-nav";
 import { BottomSheet } from "@/components/ui/studio-primitives";
+import type { TtsVoice } from "@/lib/tts/types";
+import { selectCharacterVoice } from "@/lib/tts/selection";
 
 export function CharacterBuilderClient({
   series,
@@ -39,9 +42,13 @@ export function CharacterBuilderClient({
   const [aiBusy, setAiBusy] = useState(false);
   const [undoStack, setUndoStack] = useState<CharacterConfig[][]>([]);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
-  const [voices, setVoices] = useState<Array<{ id: string; label: string }>>([]);
+  const [voices, setVoices] = useState<Array<{ id: string; label: string; name?: string; language?: string; gender?: string; description?: string }>>([]);
+  const [voiceSample, setVoiceSample] = useState("");
+  const [previewingVoice, setPreviewingVoice] = useState(false);
+  const voiceCatalog = voices.map((item) => ({ ...item, name: item.label })) as TtsVoice[];
+  const [ttsProvider, setTtsProvider] = useState("edge-tts");
 
-  React.useEffect(() => { void fetch("/api/settings").then((response) => response.json()).then((data) => setVoices(data.voices ?? [])).catch(() => setVoices([])); }, []);
+  React.useEffect(() => { void fetch("/api/settings").then((response) => response.json()).then((data) => { setVoices(data.voices ?? []); setTtsProvider(data.settings?.tts?.provider ?? "edge-tts"); }).catch(() => setVoices([])); }, []);
 
   const activeChar = characters[selectedIdx] ?? characters[0];
 
@@ -61,6 +68,7 @@ export function CharacterBuilderClient({
         colorHair: typeof source.colorHair === "string" ? source.colorHair : "#1E293B",
         proportions: source.proportions ?? { headScale: 1, bodyHeight: 1, limbLength: 1 },
         voiceId: typeof source.voiceId === "string" ? source.voiceId : "",
+        voiceProfile: source.voiceProfile ?? undefined,
         voicePitch: typeof source.voicePitch === "number" ? source.voicePitch : 0,
         voiceSpeed: typeof source.voiceSpeed === "number" ? source.voiceSpeed : 1,
         expression: source.expression ?? "netral",
@@ -81,7 +89,7 @@ export function CharacterBuilderClient({
     setAiBusy(true);
     try {
       const description = command || aiDescription || (variation ? `Buat variasi baru dari ${activeChar?.name}, pertahankan peran utama namun ubah detail visual.` : "");
-      const response = await fetch("/api/ai/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "characterDesigner", input: { description, bible: initialBible } }) });
+      const response = await fetch("/api/ai/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "characterDesigner", input: { description, bible: initialBible, voiceCatalog: voices } }) });
       const reader = response.body?.getReader();
       if (!reader) throw new Error("Sambungan progres AI gagal");
       const decoder = new TextDecoder(); let buffer = ""; let generated: Record<string, unknown> | null = null;
@@ -91,7 +99,8 @@ export function CharacterBuilderClient({
       const raw = generated as Record<string, unknown>;
       const accessoryType = String((raw.accessories as Array<{type:string}>)[0]?.type || "none");
       const accessory = (["none", "topi", "kacamata", "syal", "mahkota"] as string[]).includes(accessoryType) ? accessoryType as CharacterConfig["accessory"] : "none";
-      const config: CharacterConfig = { id: `char-${characters.length + 1}`, name: String(raw.name), role: String(raw.role), traits: Array.isArray(raw.traits) ? raw.traits.map(String).slice(0, 3) : [], colorPrimary: String(raw.shirtColor), colorSkin: String(raw.skinColor), colorPants: String(raw.pantsColor), colorHair: String(raw.hairColor), proportions: { headScale: Number(raw.headRatio), bodyHeight: Number(raw.height), limbLength: Number(raw.bodyWidth) }, voiceId: String((raw.voice as Record<string, unknown>).id), voicePitch: Number((raw.voice as Record<string, unknown>).pitch), voiceSpeed: Number((raw.voice as Record<string, unknown>).speed), expression: "netral", accessory, catchphrase: String(raw.catchphrase || ""), forbidden: "" };
+      const voiceId = selectCharacterVoice(voiceCatalog, { language: "id-ID", traits: Array.isArray(raw.traits) ? raw.traits.map(String) : [] })?.id ?? voices[0]?.id ?? "";
+      const config: CharacterConfig = { id: `char-${characters.length + 1}`, name: String(raw.name), role: String(raw.role), traits: Array.isArray(raw.traits) ? raw.traits.map(String).slice(0, 3) : [], colorPrimary: String(raw.shirtColor), colorSkin: String(raw.skinColor), colorPants: String(raw.pantsColor), colorHair: String(raw.hairColor), proportions: { headScale: Number(raw.headRatio), bodyHeight: Number(raw.height), limbLength: Number(raw.bodyWidth) }, voiceId, voiceProfile: voiceId ? { voiceId, provider: ttsProvider as NonNullable<CharacterConfig["voiceProfile"]>["provider"], style: String((raw.voice as Record<string, unknown>).style ?? ""), speed: Number((raw.voice as Record<string, unknown>).speed) || 1, pitch: Number((raw.voice as Record<string, unknown>).pitch) || 0, variation: { speed: 0.04, pitch: 1.5, style: 0.2 }, habits: [] } : undefined, voicePitch: Number((raw.voice as Record<string, unknown>).pitch), voiceSpeed: Number((raw.voice as Record<string, unknown>).speed), expression: "netral", accessory, catchphrase: String(raw.catchphrase || ""), forbidden: "" };
       setCharacters((prev) => variation || command || !activeChar ? [...prev, config] : prev.map((ch, idx) => idx === selectedIdx ? config : ch));
       if (variation || !activeChar) setSelectedIdx(characters.length);
       toast.success("Karakter dibuat oleh AI");
@@ -167,6 +176,7 @@ export function CharacterBuilderClient({
                 colorHair: "#27272A",
                 proportions: { headScale: 1, bodyHeight: 1, limbLength: 1 },
                 voiceId: voices[0]?.id ?? "",
+                voiceProfile: voices[0]?.id ? { voiceId: voices[0].id, provider: ttsProvider as NonNullable<CharacterConfig["voiceProfile"]>["provider"], style: "", speed: 1, pitch: 0, variation: { speed: 0.04, pitch: 1.5, style: 0.2 }, habits: [] } : undefined,
                 voicePitch: 0,
                 voiceSpeed: 1,
                 expression: "netral",
@@ -200,6 +210,7 @@ export function CharacterBuilderClient({
             </CardHeader>
             <CardContent className="space-y-3">
               <CharacterPreview3D
+                key={activeChar.id}
                 character={activeChar}
                 visualStyle={series.visualStyle as "voxel-3d" | "cartoon-3d"}
                 height={340}
@@ -339,7 +350,7 @@ export function CharacterBuilderClient({
                   <Label>Suara Default (Voice ID)</Label>
                   <Select
                     value={activeChar.voiceId}
-                    onValueChange={(v) => updateChar({ voiceId: v || "" })}
+                    onValueChange={(v) => updateChar({ voiceId: v || "", voiceProfile: { voiceId: v || "", style: activeChar.voiceProfile?.style ?? "", speed: activeChar.voiceProfile?.speed ?? activeChar.voiceSpeed, pitch: activeChar.voiceProfile?.pitch ?? activeChar.voicePitch, variation: activeChar.voiceProfile?.variation ?? { speed: 0.04, pitch: 1.5, style: 0.2 }, habits: activeChar.voiceProfile?.habits ?? [], provider: ttsProvider as NonNullable<CharacterConfig["voiceProfile"]>["provider"] } })}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -352,7 +363,13 @@ export function CharacterBuilderClient({
                       ))}
                     </SelectContent>
                   </Select>
+                  <div className="mt-2 flex gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={previewingVoice || !activeChar.voiceId} onClick={async () => { setPreviewingVoice(true); try { const response = await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: activeChar.voiceProfile?.provider ?? ttsProvider, voiceId: activeChar.voiceId, text: voiceSample || `Hai! Aku ${activeChar.name}. ${activeChar.catchphrase}`, emotion: activeChar.expression }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error); const audio = new Audio(data.previewUrl); await audio.play(); } catch (error) { toast.error(error instanceof Error ? error.message : "Pratinjau suara gagal"); } finally { setPreviewingVoice(false); } }}>{previewingVoice ? "Memuat…" : "Dengar"}</Button>
+                    <Input aria-label="Kalimat contoh suara" placeholder="Kalimat contoh…" value={voiceSample} onChange={(event) => setVoiceSample(event.target.value)} />
+                  </div>
                 </div>
+
+                <div className="space-y-1.5 sm:col-span-2"><Label>Gaya bicara karakter</Label><Input placeholder="Misalnya: santai, agak serak, tempo cepat, sering menahan tawa" value={activeChar.voiceProfile?.style ?? ""} onChange={(event) => updateChar({ voiceProfile: { voiceId: activeChar.voiceProfile?.voiceId ?? activeChar.voiceId, provider: activeChar.voiceProfile?.provider, style: event.target.value, speed: activeChar.voiceProfile?.speed ?? activeChar.voiceSpeed, pitch: activeChar.voiceProfile?.pitch ?? activeChar.voicePitch, variation: activeChar.voiceProfile?.variation ?? { speed: 0.04, pitch: 1.5, style: 0.2 }, habits: activeChar.voiceProfile?.habits ?? [] } })} /></div>
 
                 <div className="space-y-1.5">
                   <Label>Pitch ({activeChar.voicePitch} Hz)</Label>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Plus, Save, Trash2, Upload, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SetPreview3D } from "./SetPreview3D";
+const SetPreview3D = dynamic(() => import("./SetPreview3D").then((module) => module.SetPreview3D), { ssr: false, loading: () => <div className="grid h-[280px] place-items-center rounded-xl border border-border bg-secondary text-sm text-muted-foreground">Memuat pratinjau 3D…</div> });
 import { SeriesHeaderNav } from "@/components/series-nav";
 
 const SET_TEMPLATES: Array<{
