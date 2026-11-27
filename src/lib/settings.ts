@@ -5,7 +5,8 @@ import { AiRoleSchema, ROLE_DEFAULTS, type AiRole, type AiRoleSettings } from ".
 import { GENERATION_DEFAULTS } from "./generation-config";
 
 export type AiProviderType = "9router" | "openai" | "anthropic" | "local";
-export type TtsProviderType = "edge-tts" | "openai" | "elevenlabs" | "local";
+export type TtsProviderType = "edge-tts" | "openai" | "elevenlabs" | "google" | "azure" | "local";
+export type RenderProviderType = "remotion" | "gflow-cli";
 
 export interface AppSettingsData {
   ai: {
@@ -26,8 +27,14 @@ export interface AppSettingsData {
     defaultVoiceId: string;
     defaultSpeed: number;
     defaultPitch: number;
+    endpoint: string;
+    audio: { trimSilence: boolean; loudnessLufs: number; compressor: boolean; sampleRate: 44100 | 48000; crossfadeMs: number; maxRetries: number };
   };
   render: {
+    provider: RenderProviderType;
+    gflowModel: string;
+    gflowMaxCredits: number;
+    gflowReady: boolean;
     outputDir: string;
     fps: number;
     width: number;
@@ -165,8 +172,14 @@ export async function getAppSettings(): Promise<{
         defaultVoiceId,
         defaultSpeed,
         defaultPitch,
+        endpoint: map.get("tts.endpoint") || process.env.AZURE_SPEECH_ENDPOINT || process.env.TTS_ENDPOINT || "",
+        audio: { trimSilence: map.get("tts.audio.trimSilence") !== "false", loudnessLufs: Number(map.get("tts.audio.loudnessLufs") ?? -16), compressor: map.get("tts.audio.compressor") !== "false", sampleRate: Number(map.get("tts.audio.sampleRate") ?? 48000) === 44100 ? 44100 : 48000, crossfadeMs: Number(map.get("tts.audio.crossfadeMs") ?? 25), maxRetries: Number(map.get("tts.audio.maxRetries") ?? 2) },
       },
       render: {
+        provider: (map.get("render.provider") === "gflow-cli" ? "gflow-cli" : "remotion") as RenderProviderType,
+        gflowModel: map.get("render.gflowModel") || "veo-lite",
+        gflowMaxCredits: Number(map.get("render.gflowMaxCredits") ?? 100),
+        gflowReady: false,
         outputDir,
         fps,
         width,
@@ -196,13 +209,19 @@ export async function saveAppSettings(input: {
   };
   tts?: {
     provider?: TtsProviderType;
+    model?: string;
     apiKey?: string;
     clearApiKey?: boolean;
     defaultVoiceId?: string;
     defaultSpeed?: number;
     defaultPitch?: number;
+    endpoint?: string;
+    audio?: { trimSilence?: boolean; loudnessLufs?: number; compressor?: boolean; sampleRate?: 44100 | 48000; crossfadeMs?: number; maxRetries?: number };
   };
   render?: {
+    provider?: RenderProviderType;
+    gflowModel?: string;
+    gflowMaxCredits?: number;
     outputDir?: string;
     fps?: number;
     width?: number;
@@ -243,6 +262,9 @@ export async function saveAppSettings(input: {
   }
 
   if (input.tts) {
+    if (input.tts.model !== undefined) ops.push({ key: "tts.model", value: input.tts.model.trim() });
+    if (input.tts.audio) for (const [key, value] of Object.entries(input.tts.audio)) ops.push({ key: `tts.audio.${key}`, value: String(value) });
+    if (input.tts.endpoint !== undefined) ops.push({ key: "tts.endpoint", value: input.tts.endpoint.trim() });
     if (input.tts.provider) {
       ops.push({ key: "tts.provider", value: input.tts.provider });
     }
@@ -275,6 +297,9 @@ export async function saveAppSettings(input: {
   }
 
   if (input.render) {
+    if (input.render.provider) ops.push({ key: "render.provider", value: input.render.provider });
+    if (input.render.gflowModel !== undefined) ops.push({ key: "render.gflowModel", value: input.render.gflowModel.trim() });
+    if (input.render.gflowMaxCredits !== undefined) ops.push({ key: "render.gflowMaxCredits", value: String(input.render.gflowMaxCredits) });
     if (input.render.outputDir !== undefined) {
       ops.push({
         key: "render.outputDir",

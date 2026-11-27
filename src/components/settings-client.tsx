@@ -71,6 +71,12 @@ export function SettingsClient({
   const [height, setHeight] = useState(initialSettings.render.height);
   const [maxRetries, setMaxRetries] = useState(initialSettings.render.maxRetries);
   const [ffmpegPath, setFfmpegPath] = useState(initialSettings.render.ffmpegPath);
+  const [renderProvider, setRenderProvider] = useState(initialSettings.render.provider);
+  const [gflowModel, setGflowModel] = useState(initialSettings.render.gflowModel);
+  const [gflowMaxCredits, setGflowMaxCredits] = useState(initialSettings.render.gflowMaxCredits);
+  const [gflowInfo, setGflowInfo] = useState<{ installed: boolean; authenticated: boolean; version?: string; detail?: string } | null>(null);
+  const [gflowBusy, setGflowBusy] = useState(false);
+  const [gflowLoginBusy, setGflowLoginBusy] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<Array<{ id: string; label: string; name?: string; language?: string; gender?: string; description?: string }>>([]);
   const [ttsEndpoint, setTtsEndpoint] = useState(initialSettings.tts.endpoint);
   const [testVoice, setTestVoice] = useState("");
@@ -78,7 +84,7 @@ export function SettingsClient({
   const [testingTts, setTestingTts] = useState(false);
   const [ttsAudioConfig, setTtsAudioConfig] = useState(initialSettings.tts.audio);
 
-  useEffect(() => { void fetch("/api/settings").then((res) => res.json()).then((json) => { setAvailableVoices(json.voices ?? []); setTestVoice((current) => current || json.voices?.[0]?.id || ""); }).catch(() => setAvailableVoices([])); }, [ttsProvider]);
+  useEffect(() => { void fetch("/api/settings").then((res) => res.json()).then((json) => { setAvailableVoices(json.voices ?? []); setTestVoice((current) => current || json.voices?.[0]?.id || ""); setGflowInfo(json.gflow ?? null); }).catch(() => { setAvailableVoices([]); setGflowInfo({ installed: false, authenticated: false, detail: "Tidak dapat membaca status gflow pada server" }); }); }, [ttsProvider]);
 
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -126,6 +132,9 @@ export function SettingsClient({
             ...(clearTtsKey ? { clearApiKey: true } : {}),
           },
           render: {
+            provider: renderProvider,
+            gflowModel,
+            gflowMaxCredits,
             outputDir,
             fps,
             width,
@@ -158,6 +167,30 @@ export function SettingsClient({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function checkGflowStatus() {
+    setGflowBusy(true);
+    try {
+      const response = await fetch("/api/settings", { cache: "no-store" });
+      const json = await response.json();
+      setGflowInfo(json.gflow ?? { installed: false, authenticated: false, detail: "Status gflow tidak tersedia" });
+      if (json.gflow?.authenticated) toast.success("gflow terpasang dan sesi Flow aktif");
+      else toast.error(json.gflow?.detail || "gflow/Flow belum siap pada server");
+    } catch { toast.error("Tidak dapat memeriksa gflow pada server"); }
+    finally { setGflowBusy(false); }
+  }
+
+  async function startGflowLogin() {
+    setGflowLoginBusy(true);
+    try {
+      const response = await fetch("/api/gflow/login", { method: "POST" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Gagal memulai login Google Flow");
+      toast.success(json.message || "Login Flow dimulai pada desktop server");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal memulai login Flow");
+    } finally { setGflowLoginBusy(false); }
   }
 
   async function handleTestAiConnection() {
@@ -222,6 +255,20 @@ export function SettingsClient({
           <Save className="size-4" /> {saving ? "Menyimpan..." : "Simpan Semua Pengaturan"}
         </Button>
       </div>
+
+      <Card className="studio-card">
+        <CardHeader><CardTitle>Provider video</CardTitle><CardDescription>Gunakan Remotion lokal atau gflow-cli untuk membuat klip melalui sesi Google Flow yang login pada server.</CardDescription></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1"><Label>Provider render</Label><Select value={renderProvider} onValueChange={(value) => setRenderProvider((value as "remotion" | "gflow-cli") || "remotion")}><SelectTrigger aria-label="Provider render"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="remotion">Remotion lokal</SelectItem><SelectItem value="gflow-cli">Google Flow (gflow-cli)</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1"><Label>Model Flow</Label><Select value={gflowModel} onValueChange={(value) => setGflowModel(value || "veo-lite")}><SelectTrigger aria-label="Model gflow"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="veo-lite">Veo 3.1 Lite</SelectItem><SelectItem value="veo-lite-lp">Veo 3.1 Lite (low priority)</SelectItem><SelectItem value="omni-1.2">Omni 1.2</SelectItem><SelectItem value="omni-1.2-flash">Omni 1.2 Flash</SelectItem><SelectItem value="omni-flash">Omni Flash</SelectItem><SelectItem value="veo-fast">Veo 3.1 Fast (legacy)</SelectItem><SelectItem value="veo-quality">Veo 3.1 Quality (legacy)</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1"><Label>Batas kredit per video</Label><Input type="number" min={1} max={10000} value={gflowMaxCredits} onChange={(event) => setGflowMaxCredits(Number(event.target.value))}/></div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2"><div role="status" className="flex min-h-11 flex-wrap items-center gap-2 text-sm"><span className={`size-2 rounded-full ${gflowInfo?.installed && gflowInfo.authenticated ? "bg-primary" : "bg-amber-400"}`}/>{gflowInfo?.installed ? gflowInfo.authenticated ? `gflow ${gflowInfo.version ?? ""} siap · Flow login terdeteksi` : `gflow terpasang (${gflowInfo.version ?? "versi tidak diketahui"}), Flow belum login` : "gflow-cli belum terpasang pada server"}{gflowInfo?.detail && <span className="w-full text-xs text-muted-foreground">{gflowInfo.detail}</span>}</div><Button variant="outline" size="sm" disabled={gflowBusy} onClick={checkGflowStatus}>{gflowBusy ? "Memeriksa…" : "Periksa koneksi"}</Button></div>
+          <div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="sm" disabled={gflowLoginBusy || Boolean(gflowInfo?.authenticated)} onClick={startGflowLogin}>{gflowLoginBusy ? "Membuka login…" : gflowInfo?.authenticated ? "Flow sudah terhubung" : "Login Google Flow"}</Button><p className="text-xs text-muted-foreground">Login akan membuka browser di desktop server. Buka console mesin → Open → Desktop untuk menyelesaikan Google sign-in, lalu tekan Periksa koneksi.</p></div>
+          <p className="text-xs text-muted-foreground">Video memakai kredit akun Flow yang login pada server. gflow-cli mengendalikan browser dan bukan API resmi Google.</p>
+        </CardContent>
+      </Card>
 
       <Card className="studio-card">
         <CardHeader><CardTitle>Performa & gerakan</CardTitle><CardDescription>Efek visual memakai animasi kompositor (transform/opacity), pause saat tab tersembunyi, serta dikurangi otomatis di perangkat hemat daya.</CardDescription></CardHeader>

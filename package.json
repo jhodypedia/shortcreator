@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run tests src/lib/ai",
+    "test": "vitest run tests src/lib/ai src/lib/tts",
     "test:e2e": "playwright test",
     "seed": "tsx prisma/seed.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\""

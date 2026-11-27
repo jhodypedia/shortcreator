@@ -4,6 +4,7 @@ import { getRoleDefinition } from "./roles";
 import { GENERATION_DEFAULTS } from "../generation-config";
 import { ACTIONS, ACCESSORIES, SET_OBJECT_TYPES } from "../technical-registry";
 import type { AiRole } from "./types";
+import { firstEmoji } from "../schemas";
 
 export type AiProgressEvent = { stage: string; percent: number; text: string };
 type RunOptions = { onProgress?: (event: AiProgressEvent) => void };
@@ -18,7 +19,7 @@ function normalizeModelJson(role: AiRole, value: unknown): unknown {
   return {
     ...bible,
     world: { rules: stringArray(world.rules), impossible: stringArray(world.impossible), taboo: stringArray(world.taboo) },
-    visualStyle: { ...visualStyle, palette: stringArray(visualStyle.palette) },
+    visualStyle: { ...visualStyle, palette: stringArray(visualStyle.palette).slice(0, 12).map((color) => color.slice(0, 32)), captionFont: typeof visualStyle.captionFont === "string" ? visualStyle.captionFont.trim().slice(0, 48) : "Inter", cameraDefault: typeof visualStyle.cameraDefault === "string" ? visualStyle.cameraDefault.trim().slice(0, 32) : "medium", accentColor: typeof visualStyle.accentColor === "string" && /^#[0-9a-f]{6}$/i.test(visualStyle.accentColor) ? visualStyle.accentColor : "#10b981", emoji: firstEmoji(visualStyle.emoji) },
     continuity: { ...continuity, threads: stringArray(continuity.threads), characterStates: continuity.characterStates && typeof continuity.characterStates === "object" ? continuity.characterStates : {} },
     neverDo: stringArray(bible.neverDo),
     changelog: Array.isArray(bible.changelog) ? bible.changelog : [],

@@ -46,6 +46,10 @@ export async function POST(req: NextRequest) {
           path: string;
           durationSec: number;
           providerUsed?: string;
+          spokenText?: string;
+          timingEstimated?: boolean;
+          cacheKey?: string;
+          notice?: string;
         }>)
       : [];
 
@@ -59,15 +63,26 @@ export async function POST(req: NextRequest) {
         episodeId: episode.id,
         lineId: line.id,
         text: line.text,
-        voiceId: char?.voiceId,
-        speed: char?.voiceSpeed,
-        pitch: char?.voicePitch,
+        spokenText: line.spokenText,
+        voiceId: char?.voiceProfile?.voiceId ?? char?.voiceId,
+        provider: char?.voiceProfile?.provider,
+        language: episode.series.language,
+        delivery: line.delivery,
+        style: char?.voiceProfile?.style,
+        speed: char?.voiceProfile?.speed ?? char?.voiceSpeed,
+        pitch: char?.voiceProfile?.pitch ?? char?.voicePitch,
+        previousText: script.lines[script.lines.findIndex((item) => item.id === line.id) - 1]?.text,
+        nextText: script.lines[script.lines.findIndex((item) => item.id === line.id) + 1]?.text,
       });
       map.set(line.id, {
         lineId: line.id,
         path: res.path,
         durationSec: res.durationSec,
         providerUsed: res.providerUsed,
+        notice: res.notice,
+        spokenText: res.spokenText,
+        timingEstimated: res.timingEstimated,
+        cacheKey: res.cacheKey,
       });
       lastProvider = res.providerUsed;
       if (res.notice) lastNotice = res.notice;

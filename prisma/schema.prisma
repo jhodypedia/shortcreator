@@ -137,6 +137,22 @@ model PromptPreset {
   @@index([kind, target, updatedAt])
 }
 
+model TtsVoiceCatalog {
+  id          String   @id
+  provider    String
+  name        String
+  gender      String?
+  age         String?
+  language    String?
+  accent      String?
+  description String?
+  previewUrl  String?
+  metadata    Json?
+  updatedAt   DateTime @updatedAt
+
+  @@index([provider, language])
+}
+
 model DownloadJob {
   id          String   @id @default(cuid())
   url         String

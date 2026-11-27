@@ -1,7 +1,10 @@
 import { db, logActivity } from "./db";
 import { renderEpisodeToMp4 } from "./renderer";
-import { EpisodeReviewSchema } from "./schemas";
+import { EpisodeReviewSchema, SeriesBibleSchema, EpisodeScriptSchema } from "./schemas";
 import { getAppSettings } from "./settings";
+import { generateWithGflow } from "./gflow";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 const POLL_INTERVAL_MS = 5000;
 let isProcessing = false;
@@ -85,7 +88,12 @@ export async function processNextQueueItem(): Promise<{
     });
 
     try {
-      await renderEpisodeToMp4({
+      const { publicSettings } = await getAppSettings();
+      const renderResult = publicSettings.render.provider === "gflow-cli"
+        ? await renderWithGflow(nextItem.episodeId, nextItem.episode, publicSettings.render.gflowModel, publicSettings.render.gflowMaxCredits, async ({ progress, etaSec }) => {
+          await db.queueItem.update({ where: { id: nextItem.id }, data: { progress, currentFrame: 0, etaSec } });
+        })
+        : await renderEpisodeToMp4({
         episodeId: nextItem.episodeId,
         onProgress: async ({ progress, currentFrame, etaSec }) => {
           await db.queueItem.update({
@@ -93,7 +101,11 @@ export async function processNextQueueItem(): Promise<{
             data: { progress, currentFrame, etaSec },
           });
         },
-      });
+        });
+
+      if (publicSettings.render.provider === "gflow-cli") {
+        await db.episode.update({ where: { id: nextItem.episodeId }, data: { renderPath: renderResult.renderPath } });
+      }
 
       await db.queueItem.update({
         where: { id: nextItem.id },
@@ -150,6 +162,47 @@ export async function processNextQueueItem(): Promise<{
   } finally {
     isProcessing = false;
   }
+}
+
+async function renderWithGflow(episodeId: string, episode: { id: string; number: number; title: string; hook: string; twist: string; cliffhanger: string; script: unknown; series: { id: string; name: string; bible: unknown } }, model: string, maxCredits: number, onProgress: (progress: { progress: number; etaSec: number | null }) => Promise<void>) {
+  const bible = SeriesBibleSchema.parse(episode.series.bible);
+  const script = EpisodeScriptSchema.parse(episode.script);
+  const topCharacters = [...new Set(script.lines.map((line) => line.speaker).filter(Boolean))].slice(0, 4);
+  const characterNotes = topCharacters.map((name) => {
+    const character = bible.characters.find((item) => item.name === name);
+    return character ? `${character.name}: ${character.role}; ${character.traits.join(", ")}; warna utama ${character.colorPrimary}` : name;
+  });
+  const beats = script.lines.slice(0, 12).map((line, index) => `${index + 1}) ${line.speaker}: ${line.text} (${line.emotion})`).join("\n");
+  const prompt = [
+    "Create a polished vertical 9:16 animated Indonesian YouTube Shorts clip, with coherent visual continuity, expressive character acting, cinematic camera, clean composition and no on-screen text or subtitles.",
+    "Keep the camera, lighting and backgrounds coherent with this visual direction: " + (bible.visualStyle.captionFont ? `${bible.visualStyle.palette.join(", ")}; accent ${bible.visualStyle.accentColor}` : bible.visualStyle.palette.join(", ")),
+    `Series: ${episode.series.name}. Episode ${episode.number}: ${episode.title}.`,
+    `Hook: ${episode.hook}. Twist: ${episode.twist}. Cliffhanger: ${episode.cliffhanger}.`,
+    characterNotes.length ? `Character designs and identity consistency:\n${characterNotes.join("\n")}` : "Use a consistent original cast of stylized 3D voxel characters.",
+    `Story beats and dialogue context:\n${beats}`,
+    `The final shot should pay off the twist and land on this cliffhanger: ${episode.cliffhanger}.`,
+  ].join("\n\n");
+  const { outputDir } = (await getAppSettings()).publicSettings.render;
+  if (!outputDir) throw new Error("Atur folder output pada Pengaturan sebelum memakai gflow-cli.");
+  const destinationDir = path.join(path.isAbsolute(outputDir) ? outputDir : path.resolve(process.cwd(), outputDir), "gflow", episode.series.id);
+  const safeTitle = episode.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `episode-${episode.number}`;
+  const outputPath = path.join(destinationDir, `${String(episode.number).padStart(3, "0")}-${safeTitle}-${episodeId.slice(-6)}.mp4`);
+  await fs.mkdir(destinationDir, { recursive: true });
+  const startedAt = Date.now();
+  const result = await generateWithGflow({ prompt, outputPath, model, maxCredits, aspect: "9:16", timeoutMs: 15 * 60_000, onProgress: async (progress, detail) => {
+    const elapsed = Math.round((Date.now() - startedAt) / 1000);
+    await onProgress({ progress, etaSec: progress > 3 ? Math.max(0, Math.round(elapsed / (progress / 100) - elapsed)) : null });
+    if (detail) await logActivity({ seriesId: episode.series.id, episodeId, level: "info", message: `Google Flow ${progress}%`, detail });
+  } });
+  const storageRoot = path.resolve(process.cwd(), "storage");
+  const finalDir = path.join(storageRoot, "renders", "gflow", episode.series.id);
+  const finalFile = path.join(finalDir, path.basename(result.outputPath));
+  await fs.mkdir(finalDir, { recursive: true });
+  if (path.resolve(result.outputPath) !== path.resolve(finalFile)) await fs.copyFile(result.outputPath, finalFile);
+  const renderPath = `/api/storage/${path.relative(storageRoot, finalFile).split(path.sep).join("/")}`;
+  const stats = await fs.stat(finalFile);
+  await logActivity({ seriesId: episode.series.id, episodeId, level: "success", message: `Google Flow selesai membuat ${episode.series.name} Eps ${episode.number}`, detail: `Model ${result.model}; file ${(stats.size / 1024 / 1024).toFixed(1)} MB; waktu ${Math.round(result.elapsedMs / 1000)} dtk` });
+  return { renderPath, diskPath: finalFile, totalFrames: 0 };
 }
 
 export function startQueueWorkerLoop() {

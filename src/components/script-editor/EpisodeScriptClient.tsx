@@ -415,6 +415,11 @@ export function EpisodeScriptClient({
                     </SelectContent>
                   </Select>
 
+                  <Select value={line.delivery?.pacing ?? "natural"} disabled={isLocked} onValueChange={(value) => { const next = [...lines]; next[idx] = { ...line, delivery: { emotion: line.emotion, intensity: line.delivery?.intensity ?? 0.5, pacing: (value as NonNullable<ScriptLine["delivery"]>["pacing"]) || "natural", pauses: line.delivery?.pauses ?? [], emphasisWords: line.delivery?.emphasisWords ?? [], nonverbal: line.delivery?.nonverbal ?? [] } }; setLines(next); }}>
+                    <SelectTrigger className="w-full" aria-label={`Tempo delivery baris ${idx + 1}`}><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="slow">Lambat</SelectItem><SelectItem value="measured">Terukur</SelectItem><SelectItem value="natural">Natural</SelectItem><SelectItem value="brisk">Lincah</SelectItem><SelectItem value="fast">Cepat</SelectItem></SelectContent>
+                  </Select>
+
                   <Select
                     value={line.speaker}
                     disabled={isLocked}
@@ -547,6 +552,7 @@ export function EpisodeScriptClient({
                     next[idx] = {
                       ...line,
                       text: txt,
+                      spokenText: undefined,
                       durationSec: estimateLineDuration(txt),
                     };
                     setLines(next);

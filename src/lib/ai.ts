@@ -28,7 +28,11 @@ export async function generateScriptLines(params: { seriesName: string; tone: st
   const prompt = JSON.stringify({ series: params.seriesName, tone: params.tone, title: params.title, story: { hook: params.hook, conflict: params.conflict, twist: params.twist, payoff: params.payoff, cliffhanger: params.cliffhanger, cliffhangerFrom: params.cliffhangerFrom }, bible: context, activeSet: selectedSet, allowedSpeakers: params.bible.characters.map((character) => character.name), allowedStagePoints: Object.keys(selectedSet.stagePoints ?? {}), constraints: { requestedBeatCount: lineLimit, maxWordsPerBeat: wordLimit, minDurationSeconds: settings.publicSettings.generation.episodeDurationMinSeconds, maxDurationSeconds: settings.publicSettings.generation.episodeDurationMaxSeconds } });
   const { data } = await runAiRole("scriptwriter", { idea: prompt, bible: params.bible });
   const beats = data && typeof data === "object" && "beats" in data ? asArray<Record<string, unknown>>((data as { beats: unknown }).beats) : asArray<Record<string, unknown>>(data);
-  const lines = beats.map((beat, index) => ScriptLineSchema.parse({ ...beat, id: String(beat.id ?? `line-${index + 1}`), durationSec: Number(beat.durationSec ?? estimateLineDuration(String(beat.text))), setId: String(beat.setId ?? selectedSet.id) }));
+  const lines = await Promise.all(beats.map(async (beat, index) => {
+    const spoken = await runAiRole("ttsPrep", { text: String(beat.text ?? ""), language: "id-ID" });
+    const spokenText = typeof spoken.data === "object" && spoken.data && "spokenText" in spoken.data ? String((spoken.data as { spokenText: unknown }).spokenText) : String(beat.text ?? "");
+    return ScriptLineSchema.parse({ ...beat, spokenText, id: String(beat.id ?? `line-${index + 1}`), durationSec: Number(beat.durationSec ?? estimateLineDuration(String(beat.text))), setId: String(beat.setId ?? selectedSet.id) });
+  }));
   const speakers = new Set(params.bible.characters.map((character) => character.name));
   const stagePoints = new Set(Object.keys(selectedSet.stagePoints ?? {}));
   for (const line of lines) {

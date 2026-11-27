@@ -16,6 +16,7 @@ const defaultRolePrompts: Record<(typeof AI_ROLES)[number], string> = {
   editor: "Convert the supplied edit request into the smallest valid JSON patch. Return JSON only.",
   ideaGenerator: "Generate the requested original episode ideas following the supplied Series Bible, rules, continuity and neverDo. Return valid JSON only.",
   outlineGenerator: "Generate the requested connected outlines following the supplied Series Bible, rules, continuity and neverDo. Return valid JSON only.",
+  ttsPrep: "Prepare Indonesian dialogue for natural spoken delivery without changing meaning. Expand numbers and abbreviations only when needed for pronunciation, preserve colloquial wording from the input, and add punctuation for natural pauses. Return JSON {spokenText} only.",
 };
 
 const prisma = new PrismaClient();

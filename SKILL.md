@@ -19,6 +19,7 @@ Skill untuk membuat Shorts (YouTube Shorts / TikTok / Reels) yang **orisinal, tr
 4. **Render dari kode, bukan generate video.** Semua visual = scene Three.js (voxel / kartun 3D) + komposisi Remotion. Dilarang memakai AI video generator (Sora / Veo / Runway / sejenis) dan dilarang memakai stock footage sebagai isi utama. AI image hanya boleh untuk *referensi* moodboard, bukan frame final.
 5. **Jangan pakai aset IP orang lain.** Gaya voxel ala Minecraft boleh, tapi karakter, nama, skin, tekstur, dan logo harus buatan sendiri. Jangan pakai aset Mojang, Nintendo, Disney, dsb. Jangan pakai musik ber-copyright — pakai SFX / musik bebas lisensi atau buat sendiri (WebAudio / Tone.js).
 6. **Satu kebenaran visual.** Karakter, warna, proporsi, dan dunia harus konsisten antar episode. Yang mengunci itu adalah `series-bible.json` — bukan ingatan.
+7. **Voice persona karakter konsisten, delivery hidup.** Voice ID/provider dan gaya dasar milik karakter disimpan di Bible; emosi, intensitas, pacing, jeda, penekanan dan nonverbal ditetapkan per baris. Jangan pakai voice ID sebagai konstanta kode dan jangan anggap semua provider punya fitur ekspresi yang sama.
 
 ## 1. Kapan skill ini dipakai
 
@@ -112,6 +113,8 @@ Aturan naskah:
 - Bahasa lisan, bukan bahasa tulisan. Baca keras-keras: kalau tersendat, potong.
 - Tiap episode selesai sendiri (ada payoff), TAPI sisakan 1 benang untuk episode berikut (cliffhanger ringan / pertanyaan terbuka). Ini yang membuat orang nonton lanjutan.
 - Tulis naskah sebagai `lines[]` dengan `speaker`, `text`, `emotion`, `durationSec` — lihat `references/episode-template.json`.
+- Simpan `text` asli dan `spokenText` hasil role `ttsPrep` terpisah. Normalisasi ucapan Indonesia (angka/singkatan/tanda jeda) tidak boleh mengubah makna atau slang karakter.
+- Sertakan `delivery` per baris: `emotion`, `intensity`, `pacing`, `pauses`, `emphasisWords`, `nonverbal`. Variasikan secara kontekstual; jangan memberi setting identik pada semua baris.
 
 ### Langkah 4 — Voice timing (ini yang membedakan amatir vs pro)
 
@@ -122,6 +125,9 @@ Buat `voiceTiming` per episode — JANGAN asal tempel audio ke video:
 3. Jeda = bagian dari naskah: `pause 0,3–0,6 dtk` sebelum punchline, `pause 0,8 dtk` sebelum twist. Jangan isi jeda dengan musik keras.
 4. SFX diletakkan di frame yang sama dengan aksi visual (pukulan, pintu, ledakan) — bukan asal di tengah.
 5. Validasi: total durasi audio ≤ durasi video. Kalau audio lebih panjang, potong kata — jangan dipercepat audionya sampai cempreng.
+6. Suara setiap karakter mengambil voice profile Bible (provider, voiceId, style natural, speed/pitch, variation range, habits); pilih suara dari katalog provider yang aktif. Beri konteks kalimat sebelum/sesudah bila provider mendukung.
+7. Pakai hanya kontrol delivery yang didukung adapter provider. OpenAI instruksi gaya; ElevenLabs voice settings/continuity; Azure SSML style dan prosody; Google Chirp 3 HD tidak menerima SSML/rate/pitch; Edge-TTS hanya kontrol yang tersedia.
+8. Jalankan quality gate audio untuk durasi, silence, clipping; retry paling banyak 2 kali. Fallback provider harus tercatat dan diberitahukan, bukan diam-diam. Teks caption mengacu pada teks asli, dengan timing provider bila ada dan estimasi `timing.ts` bila tidak.
 
 Template & cara hitung ada di `references/voice-timing-template.md`.
 
@@ -219,6 +225,10 @@ Selalu akhiri dengan ringkasan pendek: apa yang dibuat, durasi, file-nya di mana
 Aplikasi mendefinisikan peran (`bibleWriter`, `characterDesigner`, `setDesigner`, `scriptwriter`, `director`, `critic`, `editor`) di `src/lib/ai/`. Prompt dan schema Zod tiap peran ada di `roles.ts`. Output harus JSON valid, maksimal dua retry dengan error validasi, dan run tercatat pada `AiRun`; `/api/ai/run` menyiarkan progres via SSE. Tambah peran dengan melengkapi type/default/schema serta integrasi workflow. Tambah primitif dengan mengubah whitelist SetSpec dan renderer set.
 
 ### Design system studio kreator
+
+### Implementasi TTS provider
+
+Kontrak provider aplikasi berada di `src/lib/tts/`; katalog suara dicache per provider dan key TTS terenkripsi lewat Settings. Selalu verifikasi nama model/API dan dukungan fitur dari dokumentasi resmi saat mengubah adapter: [OpenAI Speech](https://platform.openai.com/docs/guides/text-to-speech), [ElevenLabs](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [Google Cloud voices](https://cloud.google.com/text-to-speech/docs/voices), [Azure SSML](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-voice).
 
 Gunakan tokens terpusat di `src/app/design-tokens.css`, primitive `src/components/ui/studio-primitives.tsx`, warna emerald untuk aksi dan kuning senja untuk state AI. UI harus mobile-first, target sentuh ≥44px, aman terhadap safe-area iOS, fokus keyboard terlihat, serta menghormati `prefers-reduced-motion`. Animasi UI umum hanya transform/opacity; jangan animasikan layout/blur berat. Tab strip horizontal harus memakai auto-scroll ke tab aktif; sheet dipakai untuk editor kontekstual di layar sempit.
 

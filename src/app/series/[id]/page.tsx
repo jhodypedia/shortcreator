@@ -23,7 +23,7 @@ export default async function SeriesDetailPage({
     <div className="space-y-4">
     <SeriesHeaderNav seriesId={series.id} seriesName={series.name} bibleVersion={series.bibleVersion} accentColor={(series.bible as unknown as SeriesBible).visualStyle?.accentColor} emoji={(series.bible as unknown as SeriesBible).visualStyle?.emoji} />
     <AiEpisodeGenerator seriesId={series.id} />
-    <BibleEditorClient
+      <BibleEditorClient
       series={{
         id: series.id,
         name: series.name,

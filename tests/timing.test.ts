@@ -6,8 +6,21 @@ import {
   validateScriptMetrics,
 } from "../src/lib/timing";
 import { ScriptLine } from "../src/lib/schemas";
+import { joinCaptionWords } from "../src/remotion/captions/WordCaptions";
+import { frameDigest, isIdenticalRender } from "../src/lib/animation/determinism";
 
 describe("timing engine", () => {
+  it("joins adjacent caption words with proper spacing", () => {
+    expect(joinCaptionWords(["menjatuhkan", "kalkulatornya"])).toBe("menjatuhkan kalkulatornya");
+  });
+  it("recognizes byte-identical render frames and detects changed frames", () => {
+    const runA = [new Uint8Array([1, 2, 3]), new Uint8Array([4, 5])];
+    const runB = [new Uint8Array([1, 2, 3]), new Uint8Array([4, 5])];
+    const changed = [new Uint8Array([1, 2, 3]), new Uint8Array([4, 6])];
+    expect(frameDigest(runA)).toBe(frameDigest(runB));
+    expect(isIdenticalRender(runA, runB)).toBe(true);
+    expect(isIdenticalRender(runA, changed)).toBe(false);
+  });
   const sampleLines: ScriptLine[] = [
     {
       id: "l1",

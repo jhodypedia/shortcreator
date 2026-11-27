@@ -1,6 +1,19 @@
 import { z } from "zod";
 import { ActionTypeSchema, AccessoryTypeSchema, BODY_TYPES, LIGHTING_TYPES, SET_TEMPLATES } from "./technical-registry";
 
+export function firstEmoji(value: unknown, fallback = "🎬"): string {
+  if (typeof value !== "string") return fallback;
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  for (const { segment } of segmenter.segment(value)) {
+    if (/\p{Extended_Pictographic}/u.test(segment)) return segment;
+  }
+  return fallback;
+}
+
+const ShortBibleTextSchema = (max: number) => z.string().trim().max(max);
+const AccentColorSchema = z.string().regex(/^#[0-9a-f]{6}$/i, "Warna aksen harus format hex (#RRGGBB)");
+const BibleEmojiSchema = z.string().transform((value) => firstEmoji(value));
+
 export const EmotionSchema = z.enum([
   "netral",
   "senang",
@@ -62,6 +75,16 @@ export const CharacterSchema = z.object({
     })
     .default({ headScale: 1, bodyHeight: 1, limbLength: 1 }),
   voiceId: z.string().min(1, "Suara (voiceId) karakter wajib dipilih"),
+  voiceProfile: z.object({
+    provider: z.enum(["edge-tts", "openai", "elevenlabs", "google", "azure"]).optional(),
+    voiceId: z.string().min(1),
+    style: z.string().default(""),
+    speed: z.number().min(0.6).max(1.6).default(1),
+    pitch: z.number().min(-20).max(20).default(0),
+    variation: z.object({ speed: z.number().min(0).max(0.2).default(0.04), pitch: z.number().min(0).max(8).default(1.5), style: z.number().min(0).max(1).default(0.2) }).default({ speed: 0.04, pitch: 1.5, style: 0.2 }),
+    habits: z.array(z.string()).default([]),
+  }).optional(),
+  voiceGender: z.string().optional(),
   bodyType: z.enum(BODY_TYPES).default("human").optional(),
   voicePitch: z.number().min(-20).max(20).default(0),
   voiceSpeed: z.number().min(0.6).max(1.6).default(1),
@@ -112,11 +135,11 @@ export const SeriesBibleSchema = z.object({
   characters: z.array(CharacterSchema),
   sets: z.array(SetSchema),
   visualStyle: z.object({
-    palette: z.array(z.string()).min(1, "Minimal 1 warna palette global"),
-    captionFont: z.string().default("Inter"),
+    palette: z.array(z.string().max(32)).min(1, "Minimal 1 warna palette global").max(12),
+    captionFont: ShortBibleTextSchema(48).default("Inter"),
     cameraDefault: ShotTypeSchema.default("medium"),
-    accentColor: z.string().default("#F97316"),
-    emoji: z.string().default("🎬"),
+    accentColor: AccentColorSchema.default("#F97316"),
+    emoji: BibleEmojiSchema.default("🎬"),
   }),
   continuity: z.object({
     summary: z.string().default("Serial baru dimulai."),
@@ -128,12 +151,18 @@ export const SeriesBibleSchema = z.object({
   changelog: z.array(SeriesBibleChangelogSchema).default([]),
 });
 
+export function normalizeSeriesBibleVisualStyle<T extends { visualStyle: { emoji: string; accentColor: string } }>(bible: T): T {
+  return { ...bible, visualStyle: { ...bible.visualStyle, emoji: firstEmoji(bible.visualStyle.emoji), accentColor: /^#[0-9a-f]{6}$/i.test(bible.visualStyle.accentColor) ? bible.visualStyle.accentColor : "#10b981" } };
+}
+
 export const ScriptLineSchema = z.object({
   id: z.string().min(1),
   beat: BeatTypeSchema.default("setup"),
   speaker: z.string().min(1, "Pembicara harus dipilih"),
   text: z.string().min(1, "Teks dialog tidak boleh kosong"),
   emotion: EmotionSchema.default("netral"),
+  delivery: z.object({ emotion: z.string().default("netral"), intensity: z.number().min(0).max(1).default(0.5), pacing: z.enum(["slow", "measured", "natural", "brisk", "fast"]).default("natural"), pauses: z.array(z.object({ after: z.string(), durationMs: z.number().int().min(0).max(3000) })).default([]), emphasisWords: z.array(z.string()).default([]), nonverbal: z.array(z.enum(["laugh", "sigh", "gasp", "breath", "whisper"])).default([]) }).optional(),
+  spokenText: z.string().optional(),
   durationSec: z.number().min(0.4).max(20),
   setId: z.string().optional(),
   action: ActionTypeSchema.optional(),
